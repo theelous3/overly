@@ -17,15 +17,15 @@ def default_socket_factory():
 
 
 class Server:
-
-    def __init__(self,
-                 location,
-                 *,
-                 max_connections=float('inf'),
-                 max_concurrency=float('inf'),
-                 listen_count=5,
-                 socket_factory=default_socket_factory,
-                 steps=None
+    def __init__(
+        self,
+        location,
+        *,
+        max_connections=float("inf"),
+        max_concurrency=float("inf"),
+        listen_count=5,
+        socket_factory=default_socket_factory,
+        steps=None
     ):
         self.location = location
         self.host = location[0]
@@ -45,14 +45,13 @@ class Server:
         s.listen(self.listen_count)
         while self.max_connections_count < self.max_connections:
             with self.sema:
-                logger.info('Listening...')
+                logger.info("Listening...")
                 sock, _ = s.accept()
                 self.max_connections_count += 1
                 ClientHandler(sock, self.steps).start()
 
 
 class ClientHandler(Thread):
-
     def __init__(self, sock, steps=None):
         super().__init__()
         self.conn = h11.Connection(our_role=h11.SERVER)
@@ -62,13 +61,13 @@ class ClientHandler(Thread):
     def run(self):
         for step in self.steps:
             try:
-                logger.info('Step: {}'.format(step.__name__))
+                logger.info("Step: {}".format(step.__name__))
             except AttributeError:
-                logger.info('Step: {}'.format(step.func.__name__))
+                logger.info("Step: {}".format(step.func.__name__))
             step(self)
 
         self.sock.close()
-        logger.info('Completed')
+        logger.info("Completed")
 
     def http_next_event(self):
         while True:
