@@ -4,6 +4,8 @@ import h11
 
 from threading import Thread, BoundedSemaphore
 
+from .errors import HandledError
+
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -25,7 +27,7 @@ class Server:
         max_concurrency=float("inf"),
         listen_count=5,
         socket_factory=default_socket_factory,
-        steps=None
+        steps=None,
     ):
         self.location = location
         self.host = location[0]
@@ -38,6 +40,9 @@ class Server:
         self.socket_factory = socket_factory
 
         self.steps = steps
+
+        # For use by builtin steps
+        self.request = None
 
     def start(self):
         s = self.socket_factory()
@@ -64,7 +69,10 @@ class ClientHandler(Thread):
                 logger.info("Step: {}".format(step.__name__))
             except AttributeError:
                 logger.info("Step: {}".format(step.func.__name__))
-            step(self)
+            try:
+                step(self)
+            except HandledError:
+                ...
 
         self.sock.close()
         logger.info("Completed")
