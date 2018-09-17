@@ -18,42 +18,56 @@ def default_socket_factory():
     return s
 
 
-class Server:
+class Server(Thread):
     def __init__(
         self,
         location,
         *,
-        max_connections=float("inf"),
-        max_concurrency=float("inf"),
+        max_requests=1,
+        max_concurrency=9999,
         listen_count=5,
         socket_factory=default_socket_factory,
         steps=None,
     ):
+        super().__init__()
         self.location = location
         self.host = location[0]
         self.port = location[1]
 
-        self.max_connections = max_connections
-        self.max_connections_count = 0
+        self.max_requests = max_requests
+        self.requests_count = 0
         self.sema = BoundedSemaphore(max_concurrency)
         self.listen_count = listen_count
         self.socket_factory = socket_factory
 
         self.steps = steps
 
+        self.http_test_url = "http://{}:{}".format(location[0], str(location[1]))
+        self.https_test_url = "https://{}:{}".format(location[0], str(location[1]))
+
         # For use by builtin steps
         self.request = None
 
-    def start(self):
+    def run(self):
+        self.launch()
+
+    def launch(self):
         s = self.socket_factory()
         s.bind(self.location)
         s.listen(self.listen_count)
-        while self.max_connections_count < self.max_connections:
+        while self.requests_count < self.max_requests:
             with self.sema:
                 logger.info("Listening...")
                 sock, _ = s.accept()
-                self.max_connections_count += 1
+                self.requests_count += 1
                 ClientHandler(sock, self.steps).start()
+
+    def __call__(self, func):
+        def inner(*args, **kwargs):
+            self.start()
+            return func(self, *args, **kwargs)
+
+        return inner
 
 
 class ClientHandler(Thread):
