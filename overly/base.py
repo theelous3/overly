@@ -49,9 +49,6 @@ class Server(Thread):
         self.request = None
 
     def run(self):
-        self.launch()
-
-    def launch(self):
         s = self.socket_factory()
         s.bind(self.location)
         s.listen(self.listen_count)
