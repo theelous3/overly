@@ -1,6 +1,2 @@
-class HttpProtocolError(Exception):
-    ...
-
-
 class HandledError(Exception):
     ...
