@@ -1,3 +1,9 @@
+# TODO
+# 1. Add a way to nicely override automatic request getting for
+#    partials, headers only etc.
+# 2. Add a way to config headers per steps set, keep-alive etc.
+
+
 import h11
 
 import time
@@ -18,7 +24,6 @@ logger = logging.getLogger(__name__)
 
 
 def send_request_as_json(client_handler):
-    method_check(client_handler, "GET")
     response_data = _prepare_request_as_json(client_handler)
 
     response_headers = [
@@ -53,7 +58,73 @@ def _prepare_request_as_json(client_handler):
     return json.dumps(data).encode()
 
 
+def send_200(client_handler, data=None):
+    client_handler.http_send(
+        h11.Response(
+            status_code=200,
+            http_version=b"1.1",
+            reason=b"OK",
+            headers=[("connection", "close")],
+        )
+    )
+
+    client_handler.http_send(h11.Data(data=data or b"200"))
+
+    client_handler.http_send(h11.EndOfMessage())
+    client_handler.http_send(h11.ConnectionClosed())
+
+
+def send_204(client_handler, data=None):
+    client_handler.http_send(
+        h11.Response(
+            status_code=204,
+            http_version=b"1.1",
+            reason=b"NO CONTENT",
+            headers=[("connection", "close")],
+        )
+    )
+
+    client_handler.http_send(h11.Data(data=data or b""))
+
+    client_handler.http_send(h11.EndOfMessage())
+    client_handler.http_send(h11.ConnectionClosed())
+
+
+# ---------------------
 # 400 <= method <= 499
+# ---------------------
+
+
+def send_400(client_handler, data=None):
+    client_handler.http_send(
+        h11.Response(
+            status_code=400,
+            http_version=b"1.1",
+            reason=b"BAD REQUEST",
+            headers=[("connection", "close")],
+        )
+    )
+
+    client_handler.http_send(h11.Data(data=data or b"400"))
+
+    client_handler.http_send(h11.EndOfMessage())
+    client_handler.http_send(h11.ConnectionClosed())
+
+
+def send_403(client_handler, data=None):
+    client_handler.http_send(
+        h11.Response(
+            status_code=403,
+            http_version=b"1.1",
+            reason=b"FORBIDDEN",
+            headers=[("connection", "close")],
+        )
+    )
+
+    client_handler.http_send(h11.Data(data=data or b"403"))
+
+    client_handler.http_send(h11.EndOfMessage())
+    client_handler.http_send(h11.ConnectionClosed())
 
 
 def send_404(client_handler, data=None):
@@ -83,6 +154,27 @@ def send_405(client_handler, data=None):
     )
 
     client_handler.http_send(h11.Data(data=data or b"405"))
+
+    client_handler.http_send(h11.EndOfMessage())
+    client_handler.http_send(h11.ConnectionClosed())
+
+
+# ---------------------
+# 500 <= method <= 599
+# ---------------------
+
+
+def send_500(client_handler, data=None):
+    client_handler.http_send(
+        h11.Response(
+            status_code=500,
+            http_version=b"1.1",
+            reason=b"INTERNAL SERVER ERROR",
+            headers=[("connection", "close")],
+        )
+    )
+
+    client_handler.http_send(h11.Data(data=data or b"I'm pretending to be broken >:D"))
 
     client_handler.http_send(h11.EndOfMessage())
     client_handler.http_send(h11.ConnectionClosed())
