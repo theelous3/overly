@@ -4,21 +4,12 @@ import time
 import json
 from functools import partial
 
-from .errors import HandledError
+from .errors import EndSteps, StepError
 
-states = [
-    h11.IDLE,
-    h11.SEND_RESPONSE,
-    h11.SEND_BODY,
-    h11.DONE,
-    h11.MUST_CLOSE,
-    h11.CLOSED,
-    h11.MIGHT_SWITCH_PROTOCOL,
-    h11.SWITCHED_PROTOCOL,
-    h11.ERROR,
-]
+import logging
 
-INTERLOCUTORS = [h11.CLIENT, h11.SERVER]
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 # ---------------------
@@ -103,7 +94,21 @@ def send_405(client_handler, data=None):
 
 
 def receive_request(client_handler):
-    client_handler.request = client_handler.http_next_event()
+    """
+    This func is duplicated as a method in ClientHandler.
+    It is required for deciding which method and path to act on
+    when multiple steps are defined.
+    """
+    request = client_handler.http_next_event()
+    while True:
+        event = client_handler.http_next_event()
+        if isinstance(event, h11.EndOfMessage):
+            break
+        elif isinstance(event, h11.Data):
+            client_handler.body += event.data
+
+    client_handler.request = request
+    print("target", request.target)
 
 
 def delay(t=0):
@@ -121,4 +126,4 @@ def delay(t=0):
 def method_check(client_handler, correct_method):
     if not client_handler.request.method == correct_method.encode():
         send_405(client_handler)
-        raise HandledError
+        raise EndSteps

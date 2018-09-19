@@ -1,10 +1,13 @@
 import time
 import socket
-import h11
 
 from threading import Thread, BoundedSemaphore
+from collections.abc import Sequence
 
-from .errors import HandledError
+import h11
+
+from .errors import EndSteps, MalformedStepError
+from .constants import HttpMethods
 
 import logging
 
@@ -45,9 +48,6 @@ class Server(Thread):
         self.http_test_url = "http://{}:{}".format(location[0], str(location[1]))
         self.https_test_url = "https://{}:{}".format(location[0], str(location[1]))
 
-        # For use by builtin steps
-        self.request = None
-
     def run(self):
         s = self.socket_factory()
         s.bind(self.location)
@@ -74,7 +74,22 @@ class ClientHandler(Thread):
         self.sock = sock
         self.steps = steps
 
+        self.step_map = self._parse_steps()
+
+        # For use by builtin steps
+        self.request = None
+        self.body = b""
+
     def run(self):
+        self.receive_request()
+        if self.step_map is not None:
+            self.steps = self.step_map[
+                (
+                    HttpMethods(self.request.method.decode()),
+                    self.request.target.decode(),
+                )
+            ]
+
         for step in self.steps:
             try:
                 logger.info("Step: {}".format(step.__name__))
@@ -82,7 +97,7 @@ class ClientHandler(Thread):
                 logger.info("Step: {}".format(step.func.__name__))
             try:
                 step(self)
-            except HandledError:
+            except EndSteps:
                 ...
 
         self.sock.close()
@@ -101,3 +116,36 @@ class ClientHandler(Thread):
             data = self.conn.send(event)
             if data is not None:
                 self.sock.sendall(data)
+
+    def _parse_steps(self):
+        step_map = {}
+        for step in self.steps:
+            if isinstance(step, Sequence):
+                try:
+                    http_method, path = step[0]
+                    assert isinstance(http_method, HttpMethods)
+                    assert isinstance(path, str)
+                except (AssertionError, IndexError, ValueError, TypeError):
+                    raise MalformedStepError(
+                        "0th elem of multi step sequences "
+                        "must be formed: (HttpMethods, str)"
+                    )
+                step_map[(http_method, path)] = step[1:]
+
+        return step_map or None
+
+    def receive_request(self):
+        """
+        This mathod is duplicated as a func in steps.py
+        It is required for deciding which method and path to act on
+        when multiple steps are defined.
+        """
+        request = self.http_next_event()
+        while True:
+            event = self.http_next_event()
+            if isinstance(event, h11.EndOfMessage):
+                break
+            elif isinstance(event, h11.Data):
+                self.body += event.data
+
+        self.request = request
