@@ -55,6 +55,7 @@ def _prepare_request_as_json(client_handler):
             for header, value in client_handler.request.headers
         }
     )
+    data.update({"body": client_handler.request_body.decode()})
     return json.dumps(data).encode()
 
 
@@ -197,7 +198,7 @@ def receive_request(client_handler):
         if isinstance(event, h11.EndOfMessage):
             break
         elif isinstance(event, h11.Data):
-            client_handler.body += event.data
+            client_handler.request_body += event.data
 
     client_handler.request = request
     print("target", request.target)

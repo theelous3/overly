@@ -1,14 +1,6 @@
 from functools import partial
 
-from overly import (
-    Server,
-    receive_request,
-    send_404,
-    delay,
-    send_request_as_json,
-    ready_for_next,
-    HttpMethods,
-)
+from overly import Server, send_204, send_404, delay, send_request_as_json, HttpMethods
 
 import requests
 
@@ -27,8 +19,8 @@ if __name__ == "__main__":
         test_loc,
         max_requests=2,
         steps=[
-            [(HttpMethods.GET, 2), send_404],
-            [(HttpMethods.POST, "/"), partial(send_404, data=b"Custom 404 page")],
+            [(HttpMethods.GET, "/missing_page"), send_404],
+            [(HttpMethods.POST, "/"), send_204],
         ],
     ).run()
 

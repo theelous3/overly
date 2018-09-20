@@ -78,17 +78,26 @@ class ClientHandler(Thread):
 
         # For use by builtin steps
         self.request = None
-        self.body = b""
+        self.request_body = b""
 
     def run(self):
         self.receive_request()
         if self.step_map is not None:
-            self.steps = self.step_map[
-                (
-                    HttpMethods(self.request.method.decode()),
-                    self.request.target.decode(),
+            try:
+                self.steps = self.step_map[
+                    (
+                        HttpMethods(self.request.method.decode()),
+                        self.request.target.decode(),
+                    )
+                ]
+            except KeyError:
+                self.sock.close()
+                raise MalformedStepError(
+                    "Couldn't find matching step "
+                    "for metohd {} at target {}".format(
+                        self.request.method.decode(), self.request.target.decode()
+                    )
                 )
-            ]
 
         for step in self.steps:
             try:
@@ -146,6 +155,6 @@ class ClientHandler(Thread):
             if isinstance(event, h11.EndOfMessage):
                 break
             elif isinstance(event, h11.Data):
-                self.body += event.data
+                self.request_body += event.data
 
         self.request = request
