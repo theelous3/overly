@@ -10,7 +10,7 @@ import time
 import json
 from functools import partial
 
-from .errors import EndSteps, StepError
+from .errors import EndSteps
 
 import logging
 
@@ -28,7 +28,7 @@ def send_request_as_json(client_handler):
 
     response_headers = [
         ("connection", "close"),
-        ("content-length", str(len(response_data)).encode()),
+        add_content_len_header(response_data),
         ("content-type", "application/json"),
     ]
 
@@ -113,12 +113,15 @@ def send_400(client_handler, data=None):
 
 
 def send_403(client_handler, data=None):
+
+    body = data or b"404"
+
     client_handler.http_send(
         h11.Response(
             status_code=403,
             http_version=b"1.1",
             reason=b"FORBIDDEN",
-            headers=[("connection", "close")],
+            headers=[("connection", "close"), add_content_len_header(body)],
         )
     )
 
@@ -129,28 +132,34 @@ def send_403(client_handler, data=None):
 
 
 def send_404(client_handler, data=None):
+
+    body = data or b"404"
+
     client_handler.http_send(
         h11.Response(
             status_code=404,
             http_version=b"1.1",
             reason=b"NOT FOUND",
-            headers=[("connection", "close")],
+            headers=[("connection", "close"), add_content_len_header(body)],
         )
     )
 
-    client_handler.http_send(h11.Data(data=data or b"404"))
+    client_handler.http_send(h11.Data(data=body))
 
     client_handler.http_send(h11.EndOfMessage())
     client_handler.http_send(h11.ConnectionClosed())
 
 
 def send_405(client_handler, data=None):
+
+    body = data or b"404"
+
     client_handler.http_send(
         h11.Response(
             status_code=405,
             http_version=b"1.1",
             reason=b"METHOD NOT ALLOWED",
-            headers=[("connection", "close")],
+            headers=[("connection", "close"), add_content_len_header(body)],
         )
     )
 
@@ -166,12 +175,15 @@ def send_405(client_handler, data=None):
 
 
 def send_500(client_handler, data=None):
+
+    body = data or b"404"
+
     client_handler.http_send(
         h11.Response(
             status_code=500,
             http_version=b"1.1",
             reason=b"INTERNAL SERVER ERROR",
-            headers=[("connection", "close")],
+            headers=[("connection", "close"), add_content_len_header(body)],
         )
     )
 
@@ -201,7 +213,6 @@ def receive_request(client_handler):
             client_handler.request_body += event.data
 
     client_handler.request = request
-    print("target", request.target)
 
 
 def delay(t=0):
@@ -220,3 +231,9 @@ def method_check(client_handler, correct_method):
     if not client_handler.request.method == correct_method.encode():
         send_405(client_handler)
         raise EndSteps
+
+
+def add_content_len_header(body):
+    if hasattr(body, "encode"):
+        raise TypeError("content-length must be calculated from bytes-like object")
+    return ("content-length", str(len(body).encode()))
