@@ -52,6 +52,7 @@ class Server(Thread):
         s = self.socket_factory()
         s.bind(self.location)
         s.listen(self.listen_count)
+
         while self.requests_count < self.max_requests:
             with self.sema:
                 logger.info("Listening...")

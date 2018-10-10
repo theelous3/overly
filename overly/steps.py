@@ -18,6 +18,28 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+# --------------
+# Response Endings
+# --------------
+
+
+def end_and_close(client_handler):
+    client_handler.http_send(h11.EndOfMessage())
+    client_handler.http_send(h11.ConnectionClosed())
+
+
+def just_close(client_handler):
+    client_handler.http_send(h11.ConnectionClosed())
+
+
+def just_end(client_handler):
+    client_handler.http_send(h11.EndOfMessage())
+
+
+def just_kill():
+    raise EndSteps
+
+
 # ---------------------
 # 200 <= method <= 299
 # ---------------------
@@ -40,9 +62,6 @@ def send_request_as_json(client_handler):
 
     client_handler.http_send(h11.Data(data=_prepare_request_as_json(client_handler)))
 
-    client_handler.http_send(h11.EndOfMessage())
-    client_handler.http_send(h11.ConnectionClosed())
-
 
 def _prepare_request_as_json(client_handler):
     data = {}
@@ -59,7 +78,7 @@ def _prepare_request_as_json(client_handler):
     return json.dumps(data).encode()
 
 
-def send_200(client_handler, data=None):
+def send_200(client_handler, data=None, delay_body=None):
     client_handler.http_send(
         h11.Response(
             status_code=200,
@@ -69,10 +88,11 @@ def send_200(client_handler, data=None):
         )
     )
 
-    client_handler.http_send(h11.Data(data=data or b"200"))
+    if delay_body is not None:
+        logger.info("Delaying body by {} seconds.".format(delay_body))
+        time.sleep(delay_body)
 
-    client_handler.http_send(h11.EndOfMessage())
-    client_handler.http_send(h11.ConnectionClosed())
+    client_handler.http_send(h11.Data(data=data or b"200"))
 
 
 def send_204(client_handler, data=None):
@@ -86,9 +106,6 @@ def send_204(client_handler, data=None):
     )
 
     client_handler.http_send(h11.Data(data=data or b""))
-
-    client_handler.http_send(h11.EndOfMessage())
-    client_handler.http_send(h11.ConnectionClosed())
 
 
 # ---------------------
@@ -108,9 +125,6 @@ def send_400(client_handler, data=None):
 
     client_handler.http_send(h11.Data(data=data or b"400"))
 
-    client_handler.http_send(h11.EndOfMessage())
-    client_handler.http_send(h11.ConnectionClosed())
-
 
 def send_403(client_handler, data=None):
 
@@ -126,9 +140,6 @@ def send_403(client_handler, data=None):
     )
 
     client_handler.http_send(h11.Data(data=data or b"403"))
-
-    client_handler.http_send(h11.EndOfMessage())
-    client_handler.http_send(h11.ConnectionClosed())
 
 
 def send_404(client_handler, data=None):
@@ -146,9 +157,6 @@ def send_404(client_handler, data=None):
 
     client_handler.http_send(h11.Data(data=body))
 
-    client_handler.http_send(h11.EndOfMessage())
-    client_handler.http_send(h11.ConnectionClosed())
-
 
 def send_405(client_handler, data=None):
 
@@ -164,9 +172,6 @@ def send_405(client_handler, data=None):
     )
 
     client_handler.http_send(h11.Data(data=data or b"405"))
-
-    client_handler.http_send(h11.EndOfMessage())
-    client_handler.http_send(h11.ConnectionClosed())
 
 
 # ---------------------
@@ -188,9 +193,6 @@ def send_500(client_handler, data=None):
     )
 
     client_handler.http_send(h11.Data(data=data or b"I'm pretending to be broken >:D"))
-
-    client_handler.http_send(h11.EndOfMessage())
-    client_handler.http_send(h11.ConnectionClosed())
 
 
 # -------------------------
