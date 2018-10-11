@@ -31,30 +31,31 @@ if __name__ == "__main__":
     Server(
         test_loc,
         steps=[
-            partial(send_200, data=b"Custom 200 page" * 300, delay_body=1),
+            partial(send_200, data=b"Custom 200 page", delay_body=1),
             end_and_close,
         ],
     ).run()
 
     # Define multiple endpoints and / or methods
-    # I don't think end and close will work here.
     Server(
         test_loc,
         max_requests=2,
         steps=[
-            [(HttpMethods.GET, "/missing_page"), send_404],
-            [(HttpMethods.POST, "/"), send_204],
+            [(HttpMethods.GET, "/missing_page"), send_404, end_and_close],
+            [(HttpMethods.POST, "/"), send_204, end_and_close],
         ],
     ).run()
 
     # Use Server as a decorator on a test!
-    print("*" * 15, "Test start", "*" * 15)
 
     @Server(test_loc, steps=[send_404, end_and_close])
     def test_request_get_404(server):
+        print("*" * 15, "Test start", "*" * 15)
+
         r = requests.get(server.http_test_url)
         assert r.status_code == 404
+        print("*" * 15, "Test end", "*" * 15)
+
 
     test_request_get_404()
 
-    print("*" * 15, "Test end", "*" * 15)

@@ -45,7 +45,7 @@ def just_kill():
 # ---------------------
 
 
-def send_request_as_json(client_handler):
+def send_request_as_json(client_handler, headers=None):
     response_data = _prepare_request_as_json(client_handler)
 
     response_headers = [
@@ -53,6 +53,9 @@ def send_request_as_json(client_handler):
         add_content_len_header(response_data),
         ("content-type", "application/json"),
     ]
+
+    if headers is not None:
+        response_headers = _add_external_headers(response_headers, headers)
 
     client_handler.http_send(
         h11.Response(
@@ -78,13 +81,18 @@ def _prepare_request_as_json(client_handler):
     return json.dumps(data).encode()
 
 
-def send_200(client_handler, data=None, delay_body=None):
+def send_200(client_handler, headers=None data=None, delay_body=None):
+    response_headers = [("connection", "close")]
+
+    if headers is not None:
+        response_headers = _add_external_headers(response_headers, headers)
+
     client_handler.http_send(
         h11.Response(
             status_code=200,
             http_version=b"1.1",
             reason=b"OK",
-            headers=[("connection", "close")],
+            headers=response_headers,
         )
     )
 
@@ -95,13 +103,18 @@ def send_200(client_handler, data=None, delay_body=None):
     client_handler.http_send(h11.Data(data=data or b"200"))
 
 
-def send_204(client_handler, data=None):
+def send_204(client_handler, headers=None, data=None):
+    response_headers = [("connection", "close")]
+
+    if headers is not None:
+        response_headers = _add_external_headers(response_headers, headers)
+
     client_handler.http_send(
         h11.Response(
             status_code=204,
             http_version=b"1.1",
             reason=b"NO CONTENT",
-            headers=[("connection", "close")],
+            headers=response_headers,
         )
     )
 
@@ -113,20 +126,29 @@ def send_204(client_handler, data=None):
 # ---------------------
 
 
-def send_400(client_handler, data=None):
+def send_400(client_handler, headers=None, data=None):
+    response_headers = [("connection", "close")]
+
+    if headers is not None:
+        response_headers = _add_external_headers(response_headers, headers)
+
     client_handler.http_send(
         h11.Response(
             status_code=400,
             http_version=b"1.1",
             reason=b"BAD REQUEST",
-            headers=[("connection", "close")],
+            headers=response_headers,
         )
     )
 
     client_handler.http_send(h11.Data(data=data or b"400"))
 
 
-def send_403(client_handler, data=None):
+def send_403(client_handler, headers=None, data=None):
+    response_headers = [("connection", "close"), add_content_len_header(body)]
+
+    if headers is not None:
+        response_headers = _add_external_headers(response_headers, headers)
 
     body = data or b"404"
 
@@ -135,7 +157,7 @@ def send_403(client_handler, data=None):
             status_code=403,
             http_version=b"1.1",
             reason=b"FORBIDDEN",
-            headers=[("connection", "close"), add_content_len_header(body)],
+            headers=response_headers,
         )
     )
 
@@ -143,6 +165,10 @@ def send_403(client_handler, data=None):
 
 
 def send_404(client_handler, data=None):
+    response_headers = [("connection", "close"), add_content_len_header(body)]
+
+    if headers is not None:
+        response_headers = _add_external_headers(response_headers, headers)
 
     body = data or b"404"
 
@@ -151,14 +177,18 @@ def send_404(client_handler, data=None):
             status_code=404,
             http_version=b"1.1",
             reason=b"NOT FOUND",
-            headers=[("connection", "close"), add_content_len_header(body)],
+            headers=response_headers,
         )
     )
 
     client_handler.http_send(h11.Data(data=body))
 
 
-def send_405(client_handler, data=None):
+def send_405(client_handler, headers=None, data=None):
+    response_headers = [("connection", "close"), add_content_len_header(body)]
+
+    if headers is not None:
+        response_headers = _add_external_headers(response_headers, headers)
 
     body = data or b"404"
 
@@ -167,7 +197,7 @@ def send_405(client_handler, data=None):
             status_code=405,
             http_version=b"1.1",
             reason=b"METHOD NOT ALLOWED",
-            headers=[("connection", "close"), add_content_len_header(body)],
+            headers=response_headers,
         )
     )
 
@@ -179,7 +209,11 @@ def send_405(client_handler, data=None):
 # ---------------------
 
 
-def send_500(client_handler, data=None):
+def send_500(client_handler, headers=None, data=None):
+    response_headers = [("connection", "close"), add_content_len_header(body)]
+
+    if headers is not None:
+        response_headers = _add_external_headers(response_headers, headers)
 
     body = data or b"404"
 
@@ -188,7 +222,7 @@ def send_500(client_handler, data=None):
             status_code=500,
             http_version=b"1.1",
             reason=b"INTERNAL SERVER ERROR",
-            headers=[("connection", "close"), add_content_len_header(body)],
+            headers=response_headers,
         )
     )
 
@@ -239,3 +273,21 @@ def add_content_len_header(body):
     if hasattr(body, "encode"):
         raise TypeError("content-length must be calculated from bytes-like object")
     return ("content-length", str(len(body).encode()))
+
+
+#---------------
+# Internal utils
+#---------------
+
+def _add_external_headers(internal_headers, external_headers):
+    new_headers = []
+
+    e_keys = [e_key for e_key, _ in external_headers]
+
+    for i_key, i_value in internal_headers:
+        if i_key not in e_keys:
+            new_headers.append((i_key, i_value))
+
+    new_headers.extend(external_headers)
+
+    return new_headers
