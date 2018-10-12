@@ -81,11 +81,17 @@ def _prepare_request_as_json(client_handler):
     return json.dumps(data).encode()
 
 
-def send_200(client_handler, headers=None data=None, delay_body=None):
-    response_headers = [("connection", "close")]
+def send_200(client_handler, headers=None, data=None, delay_body=None):
+    response_data = data or b"200"
+    
+    response_headers = [
+        ("connection", "close"),
+        add_content_len_header(response_data),
+    ]
 
     if headers is not None:
         response_headers = _add_external_headers(response_headers, headers)
+
 
     client_handler.http_send(
         h11.Response(
@@ -100,11 +106,12 @@ def send_200(client_handler, headers=None data=None, delay_body=None):
         logger.info("Delaying body by {} seconds.".format(delay_body))
         time.sleep(delay_body)
 
-    client_handler.http_send(h11.Data(data=data or b"200"))
+    client_handler.http_send(h11.Data(data=response_data))
 
 
 def send_204(client_handler, headers=None, data=None):
-    response_headers = [("connection", "close")]
+    response_data = data or b""
+    response_headers = [("connection", "close"), add_content_len_header(response_data)]
 
     if headers is not None:
         response_headers = _add_external_headers(response_headers, headers)
@@ -118,7 +125,7 @@ def send_204(client_handler, headers=None, data=None):
         )
     )
 
-    client_handler.http_send(h11.Data(data=data or b""))
+    client_handler.http_send(h11.Data(data=response_data))
 
 
 # ---------------------
@@ -127,7 +134,8 @@ def send_204(client_handler, headers=None, data=None):
 
 
 def send_400(client_handler, headers=None, data=None):
-    response_headers = [("connection", "close")]
+    response_data = data or b"400"
+    response_headers = [("connection", "close"), add_content_len_header(response_data)]
 
     if headers is not None:
         response_headers = _add_external_headers(response_headers, headers)
@@ -141,16 +149,16 @@ def send_400(client_handler, headers=None, data=None):
         )
     )
 
-    client_handler.http_send(h11.Data(data=data or b"400"))
+    client_handler.http_send(h11.Data(data=response_data))
 
 
 def send_403(client_handler, headers=None, data=None):
-    response_headers = [("connection", "close"), add_content_len_header(body)]
+    response_data = data or b"403"
+    response_headers = [("connection", "close"), add_content_len_header(response_data)]
 
     if headers is not None:
         response_headers = _add_external_headers(response_headers, headers)
 
-    body = data or b"404"
 
     client_handler.http_send(
         h11.Response(
@@ -161,16 +169,16 @@ def send_403(client_handler, headers=None, data=None):
         )
     )
 
-    client_handler.http_send(h11.Data(data=data or b"403"))
+    client_handler.http_send(h11.Data(data=response_data))
 
 
-def send_404(client_handler, data=None):
-    response_headers = [("connection", "close"), add_content_len_header(body)]
+def send_404(client_handler, headers=None, data=None):
+    response_data = data or b"404"
+    response_headers = [("connection", "close"), add_content_len_header(response_data)]
 
     if headers is not None:
         response_headers = _add_external_headers(response_headers, headers)
 
-    body = data or b"404"
 
     client_handler.http_send(
         h11.Response(
@@ -181,16 +189,16 @@ def send_404(client_handler, data=None):
         )
     )
 
-    client_handler.http_send(h11.Data(data=body))
+    client_handler.http_send(h11.Data(data=response_data))
 
 
 def send_405(client_handler, headers=None, data=None):
-    response_headers = [("connection", "close"), add_content_len_header(body)]
+    response_data = data or b"405"
+    response_headers = [("connection", "close"), add_content_len_header(response_data)]
 
     if headers is not None:
         response_headers = _add_external_headers(response_headers, headers)
 
-    body = data or b"404"
 
     client_handler.http_send(
         h11.Response(
@@ -201,7 +209,7 @@ def send_405(client_handler, headers=None, data=None):
         )
     )
 
-    client_handler.http_send(h11.Data(data=data or b"405"))
+    client_handler.http_send(h11.Data(data=response_data))
 
 
 # ---------------------
@@ -210,12 +218,11 @@ def send_405(client_handler, headers=None, data=None):
 
 
 def send_500(client_handler, headers=None, data=None):
-    response_headers = [("connection", "close"), add_content_len_header(body)]
+    response_data = data or b"I'm pretending to be broken >:D"
+    response_headers = [("connection", "close"), add_content_len_header(response_data)]
 
     if headers is not None:
         response_headers = _add_external_headers(response_headers, headers)
-
-    body = data or b"404"
 
     client_handler.http_send(
         h11.Response(
@@ -226,7 +233,7 @@ def send_500(client_handler, headers=None, data=None):
         )
     )
 
-    client_handler.http_send(h11.Data(data=data or b"I'm pretending to be broken >:D"))
+    client_handler.http_send(h11.Data(data=response_data))
 
 
 # -------------------------
@@ -272,7 +279,7 @@ def method_check(client_handler, correct_method):
 def add_content_len_header(body):
     if hasattr(body, "encode"):
         raise TypeError("content-length must be calculated from bytes-like object")
-    return ("content-length", str(len(body).encode()))
+    return ("content-length", str(len(body)).encode())
 
 
 #---------------

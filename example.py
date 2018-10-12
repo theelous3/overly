@@ -24,14 +24,14 @@ if __name__ == "__main__":
     # # Return a 404 with a custom body
     Server(
         test_loc,
-        steps=[partial(send_404, data=b"Custom 404 page" * 30000), end_and_close],
+        steps=[partial(send_404, data=b"Custom 404 page"), end_and_close],
     ).run()
 
     # Return a 200 with a delayed custom body
     Server(
         test_loc,
         steps=[
-            partial(send_200, data=b"Custom 200 page", delay_body=1),
+            partial(send_200, data=b"Custom 200 page", delay_body=1, headers=[('connection', 'keep-alive')]),
             end_and_close,
         ],
     ).run()
