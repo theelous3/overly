@@ -3,6 +3,7 @@ import socket
 
 from threading import Thread, BoundedSemaphore
 from collections.abc import Sequence
+from collections import deque
 
 import h11
 
@@ -31,6 +32,7 @@ class Server(Thread):
         listen_count=5,
         socket_factory=default_socket_factory,
         steps=None,
+        ordered_steps=False,
     ):
         super().__init__()
         self.location = location
@@ -43,7 +45,8 @@ class Server(Thread):
         self.listen_count = listen_count
         self.socket_factory = socket_factory
 
-        self.steps = steps
+        self.steps = deque(steps)
+        self.ordered_steps = ordered_steps
 
         self.http_test_url = "http://{}:{}".format(location[0], str(location[1]))
         self.https_test_url = "https://{}:{}".format(location[0], str(location[1]))
@@ -58,7 +61,19 @@ class Server(Thread):
                 logger.info("Listening...")
                 sock, _ = s.accept()
                 self.requests_count += 1
-                ClientHandler(sock, self.steps).start()
+                ClientHandler(
+                    sock,
+                    self.http_test_url,
+                    self.https_test_url,
+                    steps=self.fetch_steps(),
+                ).start()
+
+    def fetch_steps(self):
+        if self.ordered_steps:
+            x = [self.steps.popleft()]
+            return x
+
+        return self.steps
 
     def __call__(self, func):
         def inner(*args, **kwargs):
@@ -69,7 +84,7 @@ class Server(Thread):
 
 
 class ClientHandler(Thread):
-    def __init__(self, sock, steps=None):
+    def __init__(self, sock, http_test_url, https_test_url, *, steps=None):
         super().__init__()
         self.conn = h11.Connection(our_role=h11.SERVER)
         self.sock = sock
@@ -77,28 +92,17 @@ class ClientHandler(Thread):
 
         self.step_map = self._parse_steps()
 
+        self.http_test_url = http_test_url
+        self.https_test_url = https_test_url
+
         # For use by builtin steps
         self.request = None
         self.request_body = b""
 
     def run(self):
         self.receive_request()
-        if self.step_map is not None:
-            try:
-                self.steps = self.step_map[
-                    (
-                        HttpMethods(self.request.method.decode()),
-                        self.request.target.decode(),
-                    )
-                ]
-            except KeyError:
-                self.sock.close()
-                raise MalformedStepError(
-                    "Couldn't find matching step "
-                    "for metohd {} at target {}".format(
-                        self.request.method.decode(), self.request.target.decode()
-                    )
-                )
+
+        self.construct_step_map()
 
         for step in self.steps:
             try:
@@ -112,6 +116,26 @@ class ClientHandler(Thread):
 
         self.sock.close()
         logger.info("Completed")
+
+    def construct_step_map(self):
+        if self.step_map is not None:
+
+            try:
+                self.steps = self.step_map[
+                    (
+                        HttpMethods(self.request.method.decode()),
+                        self.request.target.decode(),
+                    )
+                ]
+
+            except KeyError:
+                self.sock.close()
+                raise MalformedStepError(
+                    "Couldn't find matching step "
+                    "for metohd {} at target {}".format(
+                        self.request.method.decode(), self.request.target.decode()
+                    )
+                )
 
     def http_next_event(self):
         while True:

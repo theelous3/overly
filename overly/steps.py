@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 # --------------
 
 
-def end_and_close(client_handler):
+def finish(client_handler):
     client_handler.http_send(h11.EndOfMessage())
     client_handler.http_send(h11.ConnectionClosed())
 
@@ -83,22 +83,15 @@ def _prepare_request_as_json(client_handler):
 
 def send_200(client_handler, headers=None, data=None, delay_body=None):
     response_data = data or b"200"
-    
-    response_headers = [
-        ("connection", "close"),
-        add_content_len_header(response_data),
-    ]
+
+    response_headers = [("connection", "close"), add_content_len_header(response_data)]
 
     if headers is not None:
         response_headers = _add_external_headers(response_headers, headers)
 
-
     client_handler.http_send(
         h11.Response(
-            status_code=200,
-            http_version=b"1.1",
-            reason=b"OK",
-            headers=response_headers,
+            status_code=200, http_version=b"1.1", reason=b"OK", headers=response_headers
         )
     )
 
@@ -121,6 +114,64 @@ def send_204(client_handler, headers=None, data=None):
             status_code=204,
             http_version=b"1.1",
             reason=b"NO CONTENT",
+            headers=response_headers,
+        )
+    )
+
+    client_handler.http_send(h11.Data(data=response_data))
+
+
+# ---------------------
+# 300 <= method <= 399
+# ---------------------
+
+
+def send_3xx(status_code, reason_phrase, client_handler, headers=None, data=None):
+    response_data = data or str(status_code).encode()
+
+    response_headers = [
+        ("location", client_handler.http_test_url),
+        ("connection", "close"),
+        add_content_len_header(response_data),
+    ]
+
+    if headers is not None:
+        response_headers = _add_external_headers(response_headers, headers)
+
+    client_handler.http_send(
+        h11.Response(
+            status_code=status_code,
+            http_version=b"1.1",
+            reason=reason_phrase.encode(),
+            headers=response_headers,
+        )
+    )
+
+    client_handler.http_send(h11.Data(data=response_data))
+
+
+send_301 = partial(send_3xx, status_code=301, reason_phrase="MOVED PERMANENTLY")
+send_302 = partial(send_3xx, status_code=302, reason_phrase="FOUND")
+send_303 = partial(send_3xx, 303, "SEE OTHER")
+
+
+def send_304(client_handler, headers=None, data=None):
+    response_data = data or b"304"
+
+    response_headers = [
+        ("location", client_handler.http_test_url),
+        ("connection", "close"),
+        add_content_len_header(response_data),
+    ]
+
+    if headers is not None:
+        response_headers = _add_external_headers(response_headers, headers)
+
+    client_handler.http_send(
+        h11.Response(
+            status_code=304,
+            http_version=b"1.1",
+            reason=b"NOT MODIFIED",
             headers=response_headers,
         )
     )
@@ -159,7 +210,6 @@ def send_403(client_handler, headers=None, data=None):
     if headers is not None:
         response_headers = _add_external_headers(response_headers, headers)
 
-
     client_handler.http_send(
         h11.Response(
             status_code=403,
@@ -179,7 +229,6 @@ def send_404(client_handler, headers=None, data=None):
     if headers is not None:
         response_headers = _add_external_headers(response_headers, headers)
 
-
     client_handler.http_send(
         h11.Response(
             status_code=404,
@@ -198,7 +247,6 @@ def send_405(client_handler, headers=None, data=None):
 
     if headers is not None:
         response_headers = _add_external_headers(response_headers, headers)
-
 
     client_handler.http_send(
         h11.Response(
@@ -282,9 +330,10 @@ def add_content_len_header(body):
     return ("content-length", str(len(body)).encode())
 
 
-#---------------
+# ---------------
 # Internal utils
-#---------------
+# ---------------
+
 
 def _add_external_headers(internal_headers, external_headers):
     new_headers = []
