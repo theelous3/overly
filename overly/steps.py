@@ -9,6 +9,7 @@ import h11
 import time
 import json
 from functools import partial
+from urllib.parse import urlparse, unquote_plus
 
 from .errors import EndSteps
 
@@ -47,6 +48,7 @@ def just_kill():
 
 def send_request_as_json(client_handler, headers=None):
     response_data = _prepare_request_as_json(client_handler)
+    logger.info("Request as json: {}".format(response_data))
 
     response_headers = [
         ("connection", "close"),
@@ -67,10 +69,16 @@ def send_request_as_json(client_handler, headers=None):
 
 
 def _prepare_request_as_json(client_handler):
+    scheme, netloc, path, params, query, fragment = urlparse(
+        client_handler.request.target
+    )
+
     data = {}
     data.update({"http_version": client_handler.request.http_version.decode()})
     data.update({"method": client_handler.request.method.decode()})
     data.update({"target": client_handler.request.target.decode()})
+    data.update({"path": path.decode()})
+    data.update({"params": _prepare_query_for_json(unquote_plus(query.decode()))})
     data.update(
         {
             "headers": (header.decode(), value.decode())
@@ -79,6 +87,15 @@ def _prepare_request_as_json(client_handler):
     )
     data.update({"body": client_handler.request_body.decode()})
     return json.dumps(data).encode()
+
+
+def _prepare_query_for_json(query):
+    query_as_dict = {}
+    for pair in query.split("&"):
+        k, v = pair.split("=", 1)
+        query_as_dict[k] = v
+
+    return query_as_dict
 
 
 def send_200(client_handler, headers=None, data=None, delay_body=None):

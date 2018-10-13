@@ -36,8 +36,10 @@ class Server(Thread):
 
         self.max_requests = max_requests
         self.requests_count = 0
+
         self.sema = BoundedSemaphore(max_concurrency)
         self.listen_count = listen_count
+
         self.socket_factory = socket_factory
         self.socket_wrapper = socket_wrapper
 
