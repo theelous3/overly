@@ -1,5 +1,4 @@
 import time
-import socket
 
 from threading import Thread, BoundedSemaphore
 from collections.abc import Sequence
@@ -7,19 +6,14 @@ from collections import deque
 
 import h11
 
-from .errors import EndSteps, MalformedStepError
+from .socket_utils import default_socket_factory, default_socket_wrapper
 from .constants import HttpMethods
+from .errors import EndSteps, MalformedStepError
 
 import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-
-def default_socket_factory():
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    return s
 
 
 class Server(Thread):
@@ -31,6 +25,7 @@ class Server(Thread):
         max_concurrency=9999,
         listen_count=5,
         socket_factory=default_socket_factory,
+        socket_wrapper=default_socket_wrapper,
         steps=None,
         ordered_steps=False,
     ):
@@ -44,6 +39,7 @@ class Server(Thread):
         self.sema = BoundedSemaphore(max_concurrency)
         self.listen_count = listen_count
         self.socket_factory = socket_factory
+        self.socket_wrapper = socket_wrapper
 
         self.steps = deque(steps)
         self.ordered_steps = ordered_steps
@@ -56,17 +52,18 @@ class Server(Thread):
         s.bind(self.location)
         s.listen(self.listen_count)
 
-        while self.requests_count < self.max_requests:
-            with self.sema:
-                logger.info("Listening...")
-                sock, _ = s.accept()
-                self.requests_count += 1
-                ClientHandler(
-                    sock,
-                    self.http_test_url,
-                    self.https_test_url,
-                    steps=self.fetch_steps(),
-                ).start()
+        with self.socket_wrapper(s) as s:
+            while self.requests_count < self.max_requests:
+                with self.sema:
+                    logger.info("Listening...")
+                    sock, _ = s.accept()
+                    self.requests_count += 1
+                    ClientHandler(
+                        sock,
+                        self.http_test_url,
+                        self.https_test_url,
+                        steps=self.fetch_steps(),
+                    ).start()
 
     def fetch_steps(self):
         if self.ordered_steps:

@@ -2,6 +2,7 @@ from functools import partial
 
 from overly import (
     Server,
+    ssl_socket_wrapper,
     send_200,
     send_204,
     send_303,
@@ -23,11 +24,19 @@ if __name__ == "__main__":
 
     Server(test_loc, steps=[delay(1), send_request_as_json, finish]).run()
 
-    # Return a 404 with a custom body
+    # HTTPS, same as above
+
+    Server(
+        test_loc,
+        steps=[delay(1), send_request_as_json, finish],
+        ssl_socket_wrapper=ssl_socket_wrapper,
+    ).run()
+
+    # # Return a 404 with a custom body
 
     Server(test_loc, steps=[partial(send_404, data=b"Custom 404 page"), finish]).run()
 
-    # Return a 200 with a delayed custom body
+    # # Return a 200 with a delayed custom body
 
     Server(
         test_loc,
@@ -42,7 +51,7 @@ if __name__ == "__main__":
         ],
     ).run()
 
-    # Define multiple endpoints and / or methods
+    # # Define multiple endpoints and / or methods
 
     Server(
         test_loc,
@@ -53,7 +62,7 @@ if __name__ == "__main__":
         ],
     ).run()
 
-    # Enfore order on the requests for redirection.
+    # # Enfore order on the requests for redirection.
 
     Server(
         test_loc,
