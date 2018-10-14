@@ -110,6 +110,13 @@ class ClientHandler(Thread):
                 logger.info("Step: {}".format(step.func.__name__))
             try:
                 step(self)
+            except BrokenPipeError:
+                # Currently we suppress the case of trying to send data to the
+                # client, but the client has already closed their socket.
+                # This is so we do not raise exceptions in the client's tests
+                # in cases where we do not respond on time etc.
+                # This may be a bad idea. We'll see.
+                ...
             except EndSteps:
                 ...
 
