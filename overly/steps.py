@@ -133,7 +133,6 @@ def accept_cookies_and_respond(client_handler, headers=None, data=None):
     client_handler.http_send(h11.Data(data=_prepare_request_as_json(client_handler)))
 
 
-
 def send_200(client_handler, headers=None, data=None, delay_body=None):
     response_data = data or b"200"
 

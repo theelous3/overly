@@ -150,9 +150,12 @@ class ClientHandler(Thread):
 
     def detect_keepalive(self) -> bool:
         return next(
-            (True for header, value in self.request.headers
-            if (header, value) == (b'connection', b'keep-alive')),
-            False
+            (
+                True
+                for header, value in self.request.headers
+                if (header, value) == (b"connection", b"keep-alive")
+            ),
+            False,
         )
 
     def construct_step_map(self):
@@ -232,7 +235,7 @@ class SessionManager(Thread):
 
     def run(self):
         while True:
-            readable_socks, _, _ = select(self.client_socks , [], [])
+            readable_socks, _, _ = select(self.client_socks, [], [])
 
             for sock in readable_socks:
                 self.server.sessioned_socks_queue.put(sock)
