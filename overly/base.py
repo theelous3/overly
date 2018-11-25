@@ -2,7 +2,9 @@ import time
 
 from threading import Thread, BoundedSemaphore
 from queue import Queue, Empty
+
 from select import select
+from socket import socket
 
 from collections.abc import Sequence
 from collections import deque
@@ -70,7 +72,9 @@ class Server(Thread):
                     try:
                         queued_sock = self.sessioned_socks_queue.get(block=False)
                     except Empty:
-                        sock, _ = s.accept()
+                        sock, _ = self.get_new_connection(s)
+                        if sock is None:
+                            continue
                     else:
                         sock = queued_sock
 
@@ -83,6 +87,17 @@ class Server(Thread):
                         self.https_test_url,
                         steps=self.fetch_steps(),
                     ).start()
+
+    def get_new_connection(self, s) -> (socket, str):
+        """
+        We don't want to block forever waiting on socket.accept as
+        there may be keep alive sockets waiting. We poll select instead.
+        """
+        new_connections, _, _ = select([s], [], [])
+        try:
+            return new_connections[0].accept()
+        except IndexError:
+            return None
 
     def fetch_steps(self):
         if self.ordered_steps:
