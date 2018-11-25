@@ -15,7 +15,7 @@ from .http_utils import (
     get_content_type,
     extract_query,
     extract_form_urlencoded,
-    create_content_len_header
+    create_content_len_header,
 )
 from .errors import EndSteps
 
@@ -91,7 +91,13 @@ def _prepare_request_as_json(client_handler) -> dict:
         data.update({"params": extract_query(unquote_plus(query.decode()))})
 
     if content_type == b"application/x-www-form-urlencoded":
-        data.update({"form": extract_form_urlencoded(unquote_plus(client_handler.request_body.decode()))})
+        data.update(
+            {
+                "form": extract_form_urlencoded(
+                    unquote_plus(client_handler.request_body.decode())
+                )
+            }
+        )
 
     data.update(
         {
@@ -102,13 +108,39 @@ def _prepare_request_as_json(client_handler) -> dict:
 
     data.update({"body": client_handler.request_body.decode()})
     logger.info(client_handler.request_body.decode())
+
     return json.dumps(data).encode()
+
+
+def accept_cookies_and_respond(client_handler, headers=None, data=None):
+    # TODO: everything
+    response_data = data or b"200"
+
+    response_headers = [
+        ("connection", "close"),
+        create_content_len_header(response_data),
+    ]
+
+    if headers is not None:
+        response_headers = _add_external_headers(response_headers, headers)
+
+    client_handler.http_send(
+        h11.Response(
+            status_code=200, http_version=b"1.1", reason=b"OK", headers=response_headers
+        )
+    )
+
+    client_handler.http_send(h11.Data(data=_prepare_request_as_json(client_handler)))
+
 
 
 def send_200(client_handler, headers=None, data=None, delay_body=None):
     response_data = data or b"200"
 
-    response_headers = [("connection", "close"), create_content_len_header(response_data)]
+    response_headers = [
+        ("connection", "close"),
+        create_content_len_header(response_data),
+    ]
 
     if headers is not None:
         response_headers = _add_external_headers(response_headers, headers)
@@ -128,7 +160,10 @@ def send_200(client_handler, headers=None, data=None, delay_body=None):
 
 def send_204(client_handler, headers=None, data=None):
     response_data = data or b""
-    response_headers = [("connection", "close"), create_content_len_header(response_data)]
+    response_headers = [
+        ("connection", "close"),
+        create_content_len_header(response_data),
+    ]
 
     if headers is not None:
         response_headers = _add_external_headers(response_headers, headers)
@@ -210,7 +245,10 @@ def send_304(client_handler, headers=None, data=None):
 
 def send_400(client_handler, headers=None, data=None):
     response_data = data or b"400"
-    response_headers = [("connection", "close"), create_content_len_header(response_data)]
+    response_headers = [
+        ("connection", "close"),
+        create_content_len_header(response_data),
+    ]
 
     if headers is not None:
         response_headers = _add_external_headers(response_headers, headers)
@@ -229,7 +267,10 @@ def send_400(client_handler, headers=None, data=None):
 
 def send_403(client_handler, headers=None, data=None):
     response_data = data or b"403"
-    response_headers = [("connection", "close"), create_content_len_header(response_data)]
+    response_headers = [
+        ("connection", "close"),
+        create_content_len_header(response_data),
+    ]
 
     if headers is not None:
         response_headers = _add_external_headers(response_headers, headers)
@@ -248,7 +289,10 @@ def send_403(client_handler, headers=None, data=None):
 
 def send_404(client_handler, headers=None, data=None):
     response_data = data or b"404"
-    response_headers = [("connection", "close"), create_content_len_header(response_data)]
+    response_headers = [
+        ("connection", "close"),
+        create_content_len_header(response_data),
+    ]
 
     if headers is not None:
         response_headers = _add_external_headers(response_headers, headers)
@@ -267,7 +311,10 @@ def send_404(client_handler, headers=None, data=None):
 
 def send_405(client_handler, headers=None, data=None):
     response_data = data or b"405"
-    response_headers = [("connection", "close"), create_content_len_header(response_data)]
+    response_headers = [
+        ("connection", "close"),
+        create_content_len_header(response_data),
+    ]
 
     if headers is not None:
         response_headers = _add_external_headers(response_headers, headers)
@@ -297,7 +344,10 @@ def method_check(client_handler, correct_method):
 
 def send_500(client_handler, headers=None, data=None):
     response_data = data or b"I'm pretending to be broken >:D"
-    response_headers = [("connection", "close"), create_content_len_header(response_data)]
+    response_headers = [
+        ("connection", "close"),
+        create_content_len_header(response_data),
+    ]
 
     if headers is not None:
         response_headers = _add_external_headers(response_headers, headers)

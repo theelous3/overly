@@ -1,6 +1,9 @@
 import time
 
 from threading import Thread, BoundedSemaphore
+from queue import Queue, Empty
+from select import select
+
 from collections.abc import Sequence
 from collections import deque
 
@@ -49,6 +52,11 @@ class Server(Thread):
         self.http_test_url = "http://{}:{}".format(location[0], str(location[1]))
         self.https_test_url = "https://{}:{}".format(location[0], str(location[1]))
 
+        # Sessions
+        self.session_manager = SessionManager(self)
+        self.session_manager.start()
+        self.sessioned_socks_queue = Queue()
+
     def run(self):
         s = self.socket_factory()
         s.bind(self.location)
@@ -58,9 +66,18 @@ class Server(Thread):
             while self.requests_count < self.max_requests:
                 with self.sema:
                     logger.info("Listening...")
-                    sock, _ = s.accept()
+
+                    try:
+                        queued_sock = self.sessioned_socks_queue.get(block=False)
+                    except Empty:
+                        sock, _ = s.accept()
+                    else:
+                        sock = queued_sock
+
                     self.requests_count += 1
+
                     ClientHandler(
+                        self,
                         sock,
                         self.http_test_url,
                         self.https_test_url,
@@ -83,8 +100,10 @@ class Server(Thread):
 
 
 class ClientHandler(Thread):
-    def __init__(self, sock, http_test_url, https_test_url, *, steps=None):
+    def __init__(self, server, sock, http_test_url, https_test_url, *, steps=None):
         super().__init__()
+        self.server = server
+
         self.conn = h11.Connection(our_role=h11.SERVER)
         self.sock = sock
         self.steps = steps
@@ -100,6 +119,8 @@ class ClientHandler(Thread):
 
     def run(self):
         self.receive_request()
+
+        keep_alive = self.detect_keepalive()
 
         self.construct_step_map()
 
@@ -119,9 +140,20 @@ class ClientHandler(Thread):
                 ...
             except EndSteps:
                 ...
+        else:
+            if keep_alive:
+                self.server.session_manager.client_socks.append(self.sock)
+                logger.info("Complete. Requeued keepalive sock.")
+            else:
+                self.sock.close()
+                logger.info("Completed")
 
-        self.sock.close()
-        logger.info("Completed")
+    def detect_keepalive(self) -> bool:
+        return next(
+            (True for header, value in self.request.headers
+            if (header, value) == (b'connection', b'keep-alive')),
+            False
+        )
 
     def construct_step_map(self):
         if self.step_map is not None:
@@ -189,3 +221,18 @@ class ClientHandler(Thread):
                 self.request_body += event.data
 
         self.request = request
+
+
+class SessionManager(Thread):
+    def __init__(self, server: Server):
+        super().__init__()
+        self.server = server
+
+        self.client_socks = []
+
+    def run(self):
+        while True:
+            readable_socks, _, _ = select(self.client_socks , [], [])
+
+            for sock in readable_socks:
+                self.server.sessioned_socks_queue.put(sock)

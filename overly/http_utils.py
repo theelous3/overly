@@ -2,7 +2,7 @@ __all__ = [
     "get_content_type",
     "extract_query",
     "extract_form_urlencoded",
-    "create_content_len_header"
+    "create_content_len_header",
 ]
 
 
@@ -10,8 +10,7 @@ from .errors import EndSteps
 
 
 def get_content_type(headers: [(str, str)]) -> str:
-    return next((v for k, v in headers if k == b'content-type'), None)
-
+    return next((v for k, v in headers if k == b"content-type"), None)
 
 
 def extract_query(query: str) -> [(str, str)]:
