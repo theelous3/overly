@@ -54,9 +54,8 @@ class Server(Thread):
         self.http_test_url = "http://{}:{}".format(location[0], str(location[1]))
         self.https_test_url = "https://{}:{}".format(location[0], str(location[1]))
 
-        # Sessions
-        self.session_manager = SessionManager(self)
-        self.session_manager.start()
+        # Keepalive handling
+        self.keepalive_socks = []
         self.sessioned_socks_queue = Queue()
 
     def run(self):
@@ -68,6 +67,9 @@ class Server(Thread):
             while self.requests_count < self.max_requests:
                 with self.sema:
                     logger.info("Listening...")
+
+                    if self.keepalive_socks:
+                        self.queue_keepalive_socks()
 
                     try:
                         queued_sock = self.sessioned_socks_queue.get(block=False)
@@ -87,6 +89,15 @@ class Server(Thread):
                         self.https_test_url,
                         steps=self.fetch_steps(),
                     ).start()
+
+    def queue_keepalive_socks(self):
+        """
+        Queue any keepalive socks that are sending new data.
+        """
+        readable_socks, _, _ = select(self.keepalive_socks, [], [])
+
+        for sock in readable_socks:
+            self.sessioned_socks_queue.put(sock)
 
     def get_new_connection(self, s) -> (socket, str):
         """
@@ -135,7 +146,7 @@ class ClientHandler(Thread):
     def run(self):
         self.receive_request()
 
-        keep_alive = self.detect_keepalive()
+        keepalive = self.detect_keepalive()
 
         self.construct_step_map()
 
@@ -156,8 +167,8 @@ class ClientHandler(Thread):
             except EndSteps:
                 ...
         else:
-            if keep_alive:
-                self.server.session_manager.client_socks.append(self.sock)
+            if keepalive:
+                self.server.keepalive_socks.append(self.sock)
                 logger.info("Complete. Requeued keepalive sock.")
             else:
                 self.sock.close()
@@ -239,18 +250,3 @@ class ClientHandler(Thread):
                 self.request_body += event.data
 
         self.request = request
-
-
-class SessionManager(Thread):
-    def __init__(self, server: Server):
-        super().__init__()
-        self.server = server
-
-        self.client_socks = []
-
-    def run(self):
-        while True:
-            readable_socks, _, _ = select(self.client_socks, [], [])
-
-            for sock in readable_socks:
-                self.server.sessioned_socks_queue.put(sock)
