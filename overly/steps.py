@@ -75,7 +75,7 @@ def send_request_as_json(client_handler, headers=None):
 
 
 def _prepare_request_as_json(client_handler) -> dict:
-    scheme, netloc, path, params, query, fragment = urlparse(
+    _, _, path, _, query, _ = urlparse(
         client_handler.request.target
     )
 
