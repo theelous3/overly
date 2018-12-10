@@ -1,3 +1,5 @@
+from typing import Callable
+
 import time
 
 from threading import Thread, BoundedSemaphore
@@ -74,7 +76,7 @@ class Server(Thread):
                     try:
                         queued_sock = self.sessioned_socks_queue.get(block=False)
                     except Empty:
-                        sock, _ = self.get_new_connection(s)
+                        sock = self.get_new_connection(s)
                         if sock is None:
                             continue
                     else:
@@ -106,18 +108,27 @@ class Server(Thread):
         """
         new_connections, _, _ = select([s], [], [])
         try:
-            return new_connections[0].accept()
+            return new_connections[0].accept()[0]
         except IndexError:
             return None
 
-    def fetch_steps(self):
+    def fetch_steps(self) -> list:
+        """
+        Get either the next step or all steps.
+        When the steps are ordered, each is equiv to a full step
+        as defined in the most basic case.
+        """
         if self.ordered_steps:
             x = [self.steps.popleft()]
             return x
 
         return self.steps
 
-    def __call__(self, func):
+    def __call__(self, func) -> Callable:
+        """
+        Allows using Server as a decorator, starting its self in a new thread
+        and running its wrappee.
+        """
         def inner(*args, **kwargs):
             self.start()
             return func(self, *args, **kwargs)
@@ -134,7 +145,7 @@ class ClientHandler(Thread):
         self.sock = sock
         self.steps = steps
 
-        self.step_map = self._parse_steps()
+        self.step_map = self._construct_step_map()
 
         self.http_test_url = http_test_url
         self.https_test_url = https_test_url
@@ -148,7 +159,7 @@ class ClientHandler(Thread):
 
         keepalive = self.detect_keepalive()
 
-        self.construct_step_map()
+        self.get_steps()
 
         for step in self.steps:
             try:
@@ -175,6 +186,9 @@ class ClientHandler(Thread):
                 logger.info("Completed")
 
     def detect_keepalive(self) -> bool:
+        """
+        Figure out if the client has requested a keep-alive connection.
+        """
         return next(
             (
                 True
@@ -184,7 +198,10 @@ class ClientHandler(Thread):
             False,
         )
 
-    def construct_step_map(self):
+    def get_steps(self):
+        """
+        Pull the steps for the current request from the step_map.
+        """
         if self.step_map is not None:
 
             try:
@@ -204,21 +221,11 @@ class ClientHandler(Thread):
                     )
                 )
 
-    def http_next_event(self):
-        while True:
-            event = self.conn.next_event()
-            if event is h11.NEED_DATA:
-                self.conn.receive_data(self.sock.recv(2048))
-                continue
-            return event
-
-    def http_send(self, *events):
-        for event in events:
-            data = self.conn.send(event)
-            if data is not None:
-                self.sock.sendall(data)
-
-    def _parse_steps(self):
+    def _construct_step_map(self):
+        """
+        Create a mapping for each step, where the key is a tuple
+        of the method and path, and the value is a list of steps to run.
+        """
         step_map = {}
         for step in self.steps:
             if isinstance(step, Sequence):
@@ -237,7 +244,7 @@ class ClientHandler(Thread):
 
     def receive_request(self):
         """
-        This mathod is duplicated as a func in steps.py
+        This method is duplicated as a func in steps.py
         It is required for deciding which method and path to act on
         when multiple steps are defined.
         """
@@ -250,3 +257,17 @@ class ClientHandler(Thread):
                 self.request_body += event.data
 
         self.request = request
+
+    def http_next_event(self):
+        while True:
+            event = self.conn.next_event()
+            if event is h11.NEED_DATA:
+                self.conn.receive_data(self.sock.recv(2048))
+                continue
+            return event
+
+    def http_send(self, *events):
+        for event in events:
+            data = self.conn.send(event)
+            if data is not None:
+                self.sock.sendall(data)
