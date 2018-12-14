@@ -61,4 +61,6 @@ Server(
 ```
 
 
-Bam. The worst 404 page of all time. As was mentioned, overly is overly configurabe. All of your bases are covered!
+Bam. The worst 404 page of all time. The above can be used as a decorator, just like before. We can also just run the server with ``Server.run()`` for easy messing about.
+
+As was mentioned, and as you can see, overly is overly configurabe :D All of your bases are covered!
