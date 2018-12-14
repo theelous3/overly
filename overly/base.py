@@ -101,12 +101,12 @@ class Server(Thread):
         for sock in readable_socks:
             self.sessioned_socks_queue.put(sock)
 
-    def get_new_connection(self, s) -> (socket, str):
+    def get_new_connection(self, server_sock) -> (socket, str):
         """
         We don't want to block forever waiting on socket.accept as
         there may be keep alive sockets waiting. We poll select instead.
         """
-        new_connections, _, _ = select([s], [], [])
+        new_connections, _, _ = select([server_sock], [], [])
         try:
             return new_connections[0].accept()[0]
         except IndexError:
@@ -129,6 +129,7 @@ class Server(Thread):
         Allows using Server as a decorator, starting its self in a new thread
         and running its wrappee.
         """
+
         def inner(*args, **kwargs):
             self.start()
             return func(self, *args, **kwargs)

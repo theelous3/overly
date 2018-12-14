@@ -37,6 +37,7 @@ if __name__ == "__main__":
     # Server(test_loc, steps=[partial(send_404, data=b"Custom 404 page"), finish]).run()
 
     # # # Return a 200 with a delayed custom body
+    # # # Currently sending keep-alive for testing
 
     # Server(
     #     test_loc,
@@ -63,6 +64,7 @@ if __name__ == "__main__":
     # ).run()
 
     # # # Enfore order on the requests for redirection.
+    # # # Doesn't support keep-alive I think
 
     # Server(
     #     test_loc,
@@ -76,12 +78,9 @@ if __name__ == "__main__":
 
     # # Use Server as a decorator on a test!
 
-    # @Server(test_loc, steps=[send_404, finish])
-    # def test_request_get_404(server):
-    #     print("*" * 15, "Test start", "*" * 15)
-
-    #     r = requests.get(server.http_test_url)
-    #     assert r.status_code == 404
-    #     print("*" * 15, "Test end", "*" * 15)
+    @Server(test_loc, steps=[send_404, finish])
+    def test_request_get_404(server):
+        r = requests.get(server.http_test_url)
+        assert r.status_code == 404
 
     # test_request_get_404()

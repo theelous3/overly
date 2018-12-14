@@ -75,9 +75,7 @@ def send_request_as_json(client_handler, headers=None):
 
 
 def _prepare_request_as_json(client_handler) -> dict:
-    _, _, path, _, query, _ = urlparse(
-        client_handler.request.target
-    )
+    _, _, path, _, query, _ = urlparse(client_handler.request.target)
 
     content_type = get_content_type(client_handler.request.headers)
 
