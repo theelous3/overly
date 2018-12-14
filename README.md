@@ -5,6 +5,7 @@
 If you've ever found yourself wanting a test http/s server that you can do the weirdest imaginable things with, overly is for you.
 
 Let's start simple. Say we want to emulate the well known ``/get`` endpoint at httpbin.org, and stick it on a unit/pytest.
+We use ``overly.Server`` as a decorator, passing it a series of steps to do when it gets a request. The decorator injects the server object in to the test, kinda like a fixture.
 
 ```python
 from overly import Server, send_request_as_json, finish
@@ -19,7 +20,7 @@ def test_request_get_404(server):
 
 Simples! Now Let's Get Weird.
 
-Want to see if your client will handle a redirect from ``https://zippitybob.bap``, to ``https://zippitybob.bap/doowap``, that returns a 404 page that's eight gigabytes, but the server only starts sending data 43 seconds later and kills the socket before finishing, just for kicks? We'll enforce the request order too so we don't accidentally write our tests to miss the redirection case, and skip the first redirect. Alrighty then:
+Want to see if your client will handle a redirect from ``https://example.com``, to ``https://example.com/doowap``, that returns a 404 page that's eight gigabytes, but the server only starts sending data 43 seconds later and kills the socket before finishing, just for kicks? We'll enforce the request order too so we don't accidentally write our tests to miss the redirection case, and skip the first redirect. Alrighty then:
 
 ```python
 from functools import partial
