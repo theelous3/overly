@@ -329,6 +329,9 @@ def send_405(client_handler, headers=None, data=None):
 
 
 def method_check(client_handler, correct_method):
+    """
+    If the check fails, sends a 405
+    """
     if not client_handler.request.method == correct_method.encode():
         send_405(client_handler)
         raise EndSteps
