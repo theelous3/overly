@@ -13,9 +13,10 @@ from overly import Server, send_request_as_json, finish
 test_loc = ("localhost", 25001)
 
 @Server(test_loc, steps=[send_request_as_json, finish])
-def test_request_get_404(server):
-    r = requests.get(server.http_test_url)
+def test_request_get(server):
+    r = requests.get(server.http_test_url, data='wat')
     assert r.status_code == 200
+    assert r.json()['body'] == 'wat'
 ```
 
 Simples! Now Let's Get Weird.
