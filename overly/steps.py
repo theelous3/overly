@@ -99,8 +99,10 @@ def _prepare_request_as_json(client_handler) -> dict:
 
     data.update(
         {
-            "headers": (header.decode(), value.decode())
-            for header, value in client_handler.request.headers
+            "headers": [
+                [header.decode(), value.decode()]
+                for header, value in client_handler.request.headers
+            ]
         }
     )
 

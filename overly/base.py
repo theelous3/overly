@@ -37,6 +37,7 @@ class Server(Thread):
         ordered_steps=False,
     ):
         super().__init__()
+
         self.location = location
         self.host = location[0]
         self.port = location[1]
@@ -53,6 +54,8 @@ class Server(Thread):
         self.steps = deque(steps)
         self.ordered_steps = ordered_steps
 
+        # This could probably do with a little bit more inspection, for the use of
+        # more standard uris.
         self.http_test_url = "http://{}:{}".format(location[0], str(location[1]))
         self.https_test_url = "https://{}:{}".format(location[0], str(location[1]))
 
@@ -106,6 +109,7 @@ class Server(Thread):
         We don't want to block forever waiting on socket.accept as
         there may be keep alive sockets waiting. We poll select instead.
         """
+        # TODO: Maybe we need to handle multiple incoming here. Investigate.
         new_connections, _, _ = select([server_sock], [], [])
         try:
             return new_connections[0].accept()[0]
@@ -177,6 +181,8 @@ class ClientHandler(Thread):
                 # This may be a bad idea. We'll see.
                 ...
             except EndSteps:
+                # This is a control flow exception which indicates that we
+                # want to end the client as soon as possible.
                 ...
         else:
             if keepalive:
@@ -201,7 +207,12 @@ class ClientHandler(Thread):
 
     def get_steps(self):
         """
-        Pull the steps for the current request from the step_map.
+        If there is a step map, pull the steps for the current request
+        from the mapping. Steps are mapped by tuple(HttpMethod, uri).
+
+        Sets self.steps equal to the found steps from the mapping.
+
+        If there is no step map, do nothing.
         """
         if self.step_map is not None:
 

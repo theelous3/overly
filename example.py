@@ -24,20 +24,17 @@ if __name__ == "__main__":
 
     Server(test_loc, steps=[send_request_as_json, finish]).run()
 
-
     # Return a 404 with a custom body
 
     Server(test_loc, steps=[partial(send_404, data=b"Custom 404 page"), finish]).run()
-
 
     # Use Server as a decorator on a test!
 
     @Server(test_loc, steps=[send_request_as_json, finish])
     def test_request_get(server):
-        r = requests.get(server.http_test_url, data='wat')
+        r = requests.get(server.http_test_url, data="wat")
         assert r.status_code == 200
-        assert r.json()['body'] == 'wat'
-
+        assert r.json()["body"] == "wat"
 
     # HTTPS, same as above
 
@@ -46,7 +43,6 @@ if __name__ == "__main__":
         steps=[delay(1), send_request_as_json, finish],
         ssl_socket_wrapper=ssl_socket_wrapper,
     ).run()
-
 
     # Return a 200 with a delayed custom body
     # Currently sending keep-alive for testing
@@ -64,7 +60,6 @@ if __name__ == "__main__":
         ],
     ).run()
 
-
     # Define multiple endpoints and / or methods
 
     Server(
@@ -75,7 +70,6 @@ if __name__ == "__main__":
             [(HttpMethods.POST, "/"), send_204, finish],
         ],
     ).run()
-
 
     # Enfore order on the requests for redirection.
     # Doesn't support keep-alive I think

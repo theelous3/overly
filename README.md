@@ -17,6 +17,24 @@ def test_request_get(server):
     r = requests.get(server.http_test_url, data='wat')
     assert r.status_code == 200
     assert r.json()['body'] == 'wat'
+
+# The response looks like:
+# {
+#     'http_version': '1.1',
+#     'method': 'POST',
+#     'target': '/',
+#     'path': '/',
+#     'headers': [
+#         ['host', 'localhost:25001'],
+#         ['connection', 'keep-alive'],
+#         ['accept-encoding', 'gzip, deflate'],
+#         ['accept', '*/*'],
+#         ['content-length', '3'],
+#         ['user-agent', 'python-asks/2.2.0'],
+#         ['content-type', 'text/plain']
+#     ]
+#     'body': 'wat'
+# }
 ```
 
 Simples! Now Let's Get Weird.
