@@ -1,4 +1,5 @@
 from enum import Enum
+from select import POLLIN, POLLPRI, POLLOUT, POLLERR, POLLHUP, POLLRDHUP, POLLNVAL
 
 
 class HttpMethods(Enum):
@@ -10,6 +11,28 @@ class HttpMethods(Enum):
     HEAD = "HEAD"
     OPTIONS = "OPTIONS"
     TRACE = "TRACE"
+
+
+class PollMaskGroups:
+    READ_SIMPLE = [POLLIN]
+
+    READ_COMPLEX = [POLLIN | POLLPRI]
+
+    READ_WRITES = [POLLIN | POLLOUT, POLLIN | POLLPRI | POLLOUT]
+
+    ALL_READS = READ_SIMPLE + READ_COMPLEX + READ_WRITES
+
+    WRITE_SIMPLE = [POLLOUT]
+
+    READ_WRITE_SIMPLE = READ_SIMPLE + WRITE_SIMPLE
+
+    ERROR = [POLLERR]
+
+    HANGUPS = [POLLHUP, POLLRDHUP, POLLHUP | POLLRDHUP]
+
+    INVAL = [POLLNVAL]
+
+    BADS = ERROR + HANGUPS + INVAL
 
 
 default_ssl_cert = """-----BEGIN CERTIFICATE-----

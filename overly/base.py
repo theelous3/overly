@@ -1,11 +1,11 @@
-from typing import Callable
+from typing import Callable, Generator, Tuple
 
 import time
 
 from threading import Thread, BoundedSemaphore
 from queue import Queue, Empty
 
-from select import select
+from select import select, poll
 from socket import socket
 
 from collections.abc import Sequence
@@ -14,7 +14,7 @@ from collections import deque
 import h11
 
 from .socket_utils import default_socket_factory, default_socket_wrapper
-from .constants import HttpMethods
+from .constants import HttpMethods, PollMaskGroups
 from .errors import EndSteps, MalformedStepError
 
 import logging
@@ -33,6 +33,7 @@ class Server(Thread):
         listen_count=5,
         socket_factory=default_socket_factory,
         socket_wrapper=default_socket_wrapper,
+        sock_timeout=1,
         steps=None,
         ordered_steps=False,
     ):
@@ -59,9 +60,17 @@ class Server(Thread):
         self.http_test_url = "http://{}:{}".format(location[0], str(location[1]))
         self.https_test_url = "https://{}:{}".format(location[0], str(location[1]))
 
-        # Keepalive handling
-        self.keepalive_socks = []
-        self.sessioned_socks_queue = Queue()
+        # socket queueing
+        self.sock_timeout = sock_timeout
+        self.server_sock = None
+        self.socket_manager = None
+        self.socket_handling_sema = BoundedSemaphore()
+
+        # This flag is set true upon either the max requests being reached, or
+        # the decorated func completing / raising an exception. This is so threads
+        # can kill themselves in case something weird happens, so we don't hang.
+        # Thankfully all threads are using non-blocking ops, so this works :)
+        self.kill_threads = False
 
     def run(self):
         s = self.socket_factory()
@@ -69,52 +78,34 @@ class Server(Thread):
         s.listen(self.listen_count)
 
         with self.socket_wrapper(s) as s:
+
+            self.server_sock = s
+            self.server_sock.settimeout(self.sock_timeout)
+            self.socket_manager = SocketManager(self)
+
+            logger.info("Listening...")
+
             while self.requests_count < self.max_requests:
+
+                if self.kill_threads:
+                    raise SystemExit("Client finished before max requests.")
+
                 with self.sema:
-                    logger.info("Listening...")
 
-                    if self.keepalive_socks:
-                        self.queue_keepalive_socks()
+                    for sock, prefetched_data in self.socket_manager.get_socks():
+                        ClientHandler(
+                            self,
+                            sock,
+                            self.http_test_url,
+                            self.https_test_url,
+                            steps=self.fetch_steps(),
+                            prefetched_data=prefetched_data,
+                        ).start()
 
-                    try:
-                        queued_sock = self.sessioned_socks_queue.get(block=False)
-                    except Empty:
-                        sock = self.get_new_connection(s)
-                        if sock is None:
-                            continue
-                    else:
-                        sock = queued_sock
+                        self.requests_count += 1
 
-                    self.requests_count += 1
-
-                    ClientHandler(
-                        self,
-                        sock,
-                        self.http_test_url,
-                        self.https_test_url,
-                        steps=self.fetch_steps(),
-                    ).start()
-
-    def queue_keepalive_socks(self):
-        """
-        Queue any keepalive socks that are sending new data.
-        """
-        readable_socks, _, _ = select(self.keepalive_socks, [], [])
-
-        for sock in readable_socks:
-            self.sessioned_socks_queue.put(sock)
-
-    def get_new_connection(self, server_sock) -> (socket, str):
-        """
-        We don't want to block forever waiting on socket.accept as
-        there may be keep alive sockets waiting. We poll select instead.
-        """
-        # TODO: Maybe we need to handle multiple incoming here. Investigate.
-        new_connections, _, _ = select([server_sock], [], [])
-        try:
-            return new_connections[0].accept()[0]
-        except IndexError:
-            return None
+        logger.info("Server signaling to kill client threads.")
+        self.kill_threads = True
 
     def fetch_steps(self) -> list:
         """
@@ -136,13 +127,122 @@ class Server(Thread):
 
         def inner(*args, **kwargs):
             self.start()
-            return func(self, *args, **kwargs)
+            try:
+                result = func(self, *args, **kwargs)
+                return result
+            finally:
+                logger.info("Decorator exit signaling to kill client threads.")
+                self.kill_threads = True
 
         return inner
 
 
+class SocketManager:
+    """
+    Handles getting new client sockets, and registered sockets making requests.
+    """
+    def __init__(self, server: Server):
+        self.server = server
+
+        self.server_sock_fileno = server.server_sock.fileno()
+
+        self.socket_filenos = {}
+        self.poller = poll()
+        self.register_sock(self.server.server_sock)
+
+    def get_socks(self) -> Generator[Tuple[(socket, bytes)], None, None]:
+        """
+        Get registered socks that are active and sending data, or
+        new clients coming in from the server's listening sock.
+        """
+        logger.info("Going to check for a socket.")
+
+        with self.server.socket_handling_sema:
+            for sock, prefetched_data in self.get_readable_socks():
+                try:
+                    self.unregister_sock(sock)
+                except KeyError:
+                    # Already unregistered, or never registered.
+                    ...
+                yield sock, prefetched_data
+
+    def get_readable_socks(self) -> Generator[Tuple[(socket, bytes)], None, None]:
+        """
+        Get any registered sockets the OS says are read/writeable.
+        Test their state, junking ones we don't like and yielding out
+        ones we do like.
+        """
+        junk_keepalive_socks = []
+
+        for fileno, state in self.poller.poll(0.1):
+
+            if fileno == self.server_sock_fileno:
+                if state in PollMaskGroups.READ_WRITE_SIMPLE:
+                    new_client, _ = self.server.server_sock.accept()
+                    logger.info("New client request.")
+                    yield new_client, None
+
+            elif state in PollMaskGroups.READ_WRITES:
+                sock = self.socket_filenos[fileno]
+                data = sock.recv(1)
+                if data == b"":
+                    junk_keepalive_socks.append(sock)
+                else:
+                    logger.info("Keepalive request.")
+                    yield sock, data
+
+            elif state in PollMaskGroups.WRITE_SIMPLE:
+                # TODO Configurable max lifetime for sockets.
+                ...
+
+            elif state in PollMaskGroups.BADS:
+                junk_keepalive_socks.append(fileno)
+
+            else:
+                raise RuntimeError("Unsupported socket poll mask.")
+
+        self.remove_junk_socks(junk_keepalive_socks)
+
+    def remove_junk_socks(self, junk_socks: [int]) -> None:
+        """
+        Unregister and throw away smelly socks.
+        """
+        for fileno in junk_socks:
+            try:
+                sock = self.socket_filenos[fileno]
+                self.unregister_sock(sock)
+                sock.close()
+                logger.info("Junked {}".format(fileno))
+            except KeyError:
+                ...
+
+    def register_sock(self, sock: socket) -> None:
+        """
+        Register the given sock with the polling object, and internal dict.
+        """
+        self.poller.register(sock)
+        self.socket_filenos[sock.fileno()] = sock
+
+    def unregister_sock(self, sock: socket) -> None:
+        """
+        Unregister the given sock with the polling object, and internal dict.
+        """
+        fileno = sock.fileno()
+        self.poller.unregister(fileno)
+        del self.socket_filenos[fileno]
+
+
 class ClientHandler(Thread):
-    def __init__(self, server, sock, http_test_url, https_test_url, *, steps=None):
+    def __init__(
+        self,
+        server,
+        sock,
+        http_test_url,
+        https_test_url,
+        *,
+        steps=None,
+        prefetched_data=None,
+    ):
         super().__init__()
         self.server = server
 
@@ -155,14 +255,14 @@ class ClientHandler(Thread):
         self.http_test_url = http_test_url
         self.https_test_url = https_test_url
 
+        self.prefetched_data = prefetched_data
+
         # For use by builtin steps
         self.request = None
         self.request_body = b""
 
     def run(self):
         self.receive_request()
-
-        keepalive = self.detect_keepalive()
 
         self.get_steps()
 
@@ -185,12 +285,13 @@ class ClientHandler(Thread):
                 # want to end the client as soon as possible.
                 ...
         else:
-            if keepalive:
-                self.server.keepalive_socks.append(self.sock)
-                logger.info("Complete. Requeued keepalive sock.")
-            else:
-                self.sock.close()
-                logger.info("Completed")
+            with self.server.socket_handling_sema:
+                if self.detect_keepalive():
+                    self.server.socket_manager.register_sock(self.sock)
+                    logger.info("Completed. Connection kept alive.")
+                else:
+                    self.sock.close()
+                    logger.info("Completed. Connection closed.")
 
     def detect_keepalive(self) -> bool:
         """
@@ -272,9 +373,16 @@ class ClientHandler(Thread):
 
     def http_next_event(self):
         while True:
+            if self.server.kill_threads:
+                raise SystemExit
             event = self.conn.next_event()
             if event is h11.NEED_DATA:
-                self.conn.receive_data(self.sock.recv(2048))
+                if self.prefetched_data is not None:
+                    data = self.prefetched_data + self.sock.recv(2048)
+                    self.prefetched_data = None
+                else:
+                    data = self.sock.recv(2048)
+                self.conn.receive_data(data)
                 continue
             return event
 
