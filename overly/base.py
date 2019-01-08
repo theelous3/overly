@@ -155,8 +155,6 @@ class SocketManager:
         Get registered socks that are active and sending data, or
         new clients coming in from the server's listening sock.
         """
-        logger.info("Going to check for a socket.")
-
         with self.server.socket_handling_sema:
             for sock, prefetched_data in self.get_readable_socks():
                 try:
