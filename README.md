@@ -48,7 +48,7 @@ from overly import (
     Server,
     ssl_socket_wrapper,
     HttpMethods,
-    send_303m,
+    send_303,
     send_404,
     delay,
     just_kill
@@ -83,3 +83,5 @@ Server(
 Bam. The worst 404 page of all time. The above can be used as a decorator, just like before. We can also just run the server with ``Server.run()`` for easy messing about.
 
 As was mentioned, and as you can see, overly is overly configurabe :D All of your bases are covered!
+
+The ``Server`` is concurrent, so you can test all of your weird async / threaded / voodoo clients, with keep-alive support.
