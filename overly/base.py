@@ -1,11 +1,8 @@
 from typing import Callable, Generator, Tuple
 
-import time
-
 from threading import Thread, BoundedSemaphore
-from queue import Queue, Empty
 
-from select import select, poll
+from select import poll
 from socket import socket
 
 from collections.abc import Sequence
@@ -76,11 +73,11 @@ class Server(Thread):
         s = self.socket_factory()
         s.bind(self.location)
         s.listen(self.listen_count)
+        s.settimeout(self.sock_timeout)
 
         with self.socket_wrapper(s) as s:
 
             self.server_sock = s
-            self.server_sock.settimeout(self.sock_timeout)
             self.socket_manager = SocketManager(self)
 
             logger.info("Listening...")
@@ -119,7 +116,7 @@ class Server(Thread):
 
         return self.steps
 
-    def __call__(self, func) -> Callable:
+    def __call__(self, func: Callable) -> Callable:
         """
         Allows using Server as a decorator, starting its self in a new thread
         and running its wrappee.
@@ -172,7 +169,7 @@ class SocketManager:
         """
         junk_keepalive_socks = []
 
-        for fileno, state in self.poller.poll(0.1):
+        for fileno, state in self.poller.poll(0.02):
 
             if fileno == self.server_sock_fileno:
                 if state in PollMaskGroups.READ_WRITE_SIMPLE:
@@ -183,6 +180,8 @@ class SocketManager:
             elif state in PollMaskGroups.READ_WRITES:
                 sock = self.socket_filenos[fileno]
                 data = sock.recv(1)
+
+                # test for liveliness
                 if data == b"":
                     junk_keepalive_socks.append(sock)
                 else:

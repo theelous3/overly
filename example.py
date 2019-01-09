@@ -22,7 +22,15 @@ if __name__ == "__main__":
 
     # Wait one second and return the response as json
 
-    Server(test_loc, steps=[send_request_as_json, finish]).run()
+    Server(test_loc, steps=[delay(1), send_request_as_json, finish]).run()
+
+    # HTTPS, same as above
+
+    Server(
+        test_loc,
+        steps=[delay(1), send_request_as_json, finish],
+        socket_wrapper=ssl_socket_wrapper,
+    ).run()
 
     # Return a 404 with a custom body
 
@@ -36,13 +44,6 @@ if __name__ == "__main__":
         assert r.status_code == 200
         assert r.json()["body"] == "wat"
 
-    # HTTPS, same as above
-
-    Server(
-        test_loc,
-        steps=[delay(1), send_request_as_json, finish],
-        ssl_socket_wrapper=ssl_socket_wrapper,
-    ).run()
 
     # Return a 200 with a delayed custom body
     # Currently sending keep-alive for testing
@@ -72,7 +73,8 @@ if __name__ == "__main__":
     ).run()
 
     # Enfore order on the requests for redirection.
-    # Doesn't support keep-alive I think
+    # Doesn't support clients using concurrency, as it's unenforceable
+    # on the real web without writing a terrible server.
 
     Server(
         test_loc,
