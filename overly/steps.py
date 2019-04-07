@@ -80,13 +80,13 @@ def _prepare_request_as_json(client_handler) -> dict:
     content_type = get_content_type(client_handler.request.headers)
 
     data = {}
-    data["http_version"] = client_handler.request.http_version.decode()})
-    data["method"] = client_handler.request.method.decode()})
-    data["target"] = client_handler.request.target.decode()})
-    data["path"] = path.decode()})
+    data["http_version"] = client_handler.request.http_version.decode()
+    data["method"] = client_handler.request.method.decode()
+    data["target"] = client_handler.request.target.decode()
+    data["path"] = path.decode()
 
     if query:
-        data["params"] = extract_query(unquote_plus(query.decode()))})
+        data["params"] = extract_query(unquote_plus(query.decode()))
 
     if content_type == b"application/x-www-form-urlencoded":
         data.update(
@@ -106,7 +106,7 @@ def _prepare_request_as_json(client_handler) -> dict:
         }
     )
 
-    data["body"] = client_handler.request_body.decode()})
+    data["body"] = client_handler.request_body.decode()
     logger.info(client_handler.request_body.decode())
 
     return json.dumps(data).encode()
