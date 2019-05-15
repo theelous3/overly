@@ -10,11 +10,15 @@ import time
 import json
 from functools import partial
 from urllib.parse import urlparse, unquote_plus
+from http.cookies import SimpleCookie
 
 from .http_utils import (
     get_content_type,
     extract_query,
     extract_form_urlencoded,
+    extract_cookies,
+    cookies_to_key_value,
+    cookiest_to_output,
     create_content_len_header,
 )
 from .errors import EndSteps
@@ -71,7 +75,7 @@ def send_request_as_json(client_handler, headers=None):
         )
     )
 
-    client_handler.http_send(h11.Data(data=_prepare_request_as_json(client_handler)))
+    client_handler.http_send(h11.Data(data=response_data))
 
 
 def _prepare_request_as_json(client_handler) -> dict:
@@ -113,12 +117,17 @@ def _prepare_request_as_json(client_handler) -> dict:
 
 
 def accept_cookies_and_respond(client_handler, headers=None, data=None):
-    # TODO: everything
-    response_data = data or b"200"
+    cookies = extract_cookies(client_handler.request.headers)
+    cookies_for_body = cookies_to_key_value(cookies)
+    cookies_for_header = cookiest_to_output(cookies)
+
+    response_data = prepare_cookies_response(cookies_for_body)
 
     response_headers = [
         ("connection", "close"),
         create_content_len_header(response_data),
+        ("content-type", "application/json"),
+        ("cookie", cookies_for_header),
     ]
 
     if headers is not None:
@@ -130,7 +139,13 @@ def accept_cookies_and_respond(client_handler, headers=None, data=None):
         )
     )
 
-    client_handler.http_send(h11.Data(data=_prepare_request_as_json(client_handler)))
+    client_handler.http_send(h11.Data(data=response_data))
+
+
+def prepare_cookies_response(cookies: SimpleCookie) -> bytes:
+    cookies = {k: v for k, v in [cookie.split('=') for cookie in cookies]}
+    data = {'cookies': cookies}
+    return json.dumps(data).encode()
 
 
 def send_200(client_handler, headers=None, data=None, delay_body=None):

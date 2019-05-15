@@ -1,6 +1,7 @@
 from typing import Callable, Generator, Tuple
 
 from threading import Thread, BoundedSemaphore
+from queue import Queue
 
 from select import poll
 from socket import socket
@@ -44,6 +45,7 @@ class Server(Thread):
         self.requests_count = 0
 
         self.sema = BoundedSemaphore(max_concurrency)
+        self.queue = Queue()
         self.listen_count = listen_count
 
         self.socket_factory = socket_factory
@@ -90,6 +92,7 @@ class Server(Thread):
                 with self.sema:
 
                     for sock, prefetched_data in self.socket_manager.get_socks():
+                        self.queue.put(1)
                         ClientHandler(
                             self,
                             sock,
@@ -101,6 +104,7 @@ class Server(Thread):
 
                         self.requests_count += 1
 
+        self.queue.join()
         logger.info("Server signaling to kill client threads.")
         self.kill_threads = True
 
@@ -169,7 +173,7 @@ class SocketManager:
         """
         junk_keepalive_socks = []
 
-        for fileno, state in self.poller.poll(0.02):
+        for fileno, state in self.poller.poll(0.1):
 
             if fileno == self.server_sock_fileno:
                 if state in PollMaskGroups.READ_WRITE_SIMPLE:
@@ -259,36 +263,41 @@ class ClientHandler(Thread):
         self.request_body = b""
 
     def run(self):
+        self.server.queue.get()
         self.receive_request()
 
         self.get_steps()
 
-        for step in self.steps:
-            try:
-                logger.info("Step: {}".format(step.__name__))
-            except AttributeError:
-                logger.info("Step: {}".format(step.func.__name__))
-            try:
-                step(self)
-            except BrokenPipeError:
-                # Currently we suppress the case of trying to send data to the
-                # client, but the client has already closed their socket.
-                # This is so we do not raise exceptions in the client's tests
-                # in cases where we do not respond on time etc.
-                # This may be a bad idea. We'll see.
-                ...
-            except EndSteps:
-                # This is a control flow exception which indicates that we
-                # want to end the client as soon as possible.
-                ...
-        else:
-            with self.server.socket_handling_sema:
-                if self.detect_keepalive():
-                    self.server.socket_manager.register_sock(self.sock)
-                    logger.info("Completed. Connection kept alive.")
-                else:
-                    self.sock.close()
-                    logger.info("Completed. Connection closed.")
+        try:
+            for step in self.steps:
+                try:
+                    logger.info("Step: {}".format(step.__name__))
+                except AttributeError:
+                    logger.info("Step: {}".format(step.func.__name__))
+                try:
+                    step(self)
+                except BrokenPipeError:
+                    # Currently we suppress the case of trying to send data to the
+                    # client, but the client has already closed their socket.
+                    # This is so we do not raise exceptions in the client's tests
+                    # in cases where we do not respond on time etc. (which would be
+                    # intentional).
+                    # This may be a bad idea. We'll see.
+                    ...
+                except EndSteps:
+                    # This is a control flow exception which indicates that we
+                    # want to end the client as soon as possible.
+                    ...
+            else:
+                with self.server.socket_handling_sema:
+                    if self.detect_keepalive():
+                        self.server.socket_manager.register_sock(self.sock)
+                        logger.info("Completed. Connection kept alive.")
+                    else:
+                        self.sock.close()
+                        logger.info("Completed. Connection closed.")
+        finally:
+            self.server.queue.task_done()
 
     def detect_keepalive(self) -> bool:
         """
