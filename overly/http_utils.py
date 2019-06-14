@@ -4,11 +4,19 @@ __all__ = [
     "extract_form_urlencoded",
     "create_content_len_header",
     "extract_cookies",
-    "cookies_to_key_value",
-    "cookiest_to_output"
+    "cookies_to_headers",
+    "cookies_to_output",
+    "parse_multipart",
+    "extract_multipart_form_file",
+    "extract_multipart_form_data",
+    "extract_multipart_json"
 ]
 
+from io import BytesIO
+from json import loads
 from http.cookies import SimpleCookie
+
+from sansio_multipart import MultipartParser, Part, PartData, Events
 
 from .errors import EndSteps
 
@@ -58,15 +66,78 @@ def extract_cookies(client_headers):
     return SimpleCookie(joined_cookies)
 
 
-def cookies_to_key_value(cookies: SimpleCookie) -> [[str, str]]:
+def cookies_to_output(cookies: SimpleCookie) -> [[str, str]]:
     return [f"{cookie_name}={cookies[cookie_name].coded_value}" for cookie_name in cookies]
 
-def cookiest_to_output(cookies: SimpleCookie) -> str:
-    cookies = cookies_to_key_value(cookies)
-    return "; ".join(cookies)
+
+def cookies_to_headers(cookies: SimpleCookie) -> [(str, str)]:
+    return [("set-cookie", cookie) for cookie in cookies_to_output(cookies)]
 
 
 def create_content_len_header(body: bytes) -> (str, str):
     if hasattr(body, "encode"):
         raise TypeError("content-length must be calculated from bytes-like object")
     return ("content-length", str(len(body)).encode())
+
+
+def parse_multipart(content_type: bytes, body: bytes) -> [Part]:
+
+    content_type, boundary = content_type.split(b";")
+    boundary = boundary.lstrip()
+    _, boundary = boundary.split(b"=")
+
+    with MultipartParser(boundary) as parser:
+        parts = []
+        current_part = None
+
+        events = parser.parse(body)
+
+        for event in events:
+            if isinstance(event, Part):
+                if current_part is not None:
+                    parts.append(current_part)
+                current_part = event
+            elif isinstance(event, PartData):
+                if current_part is not None:
+                    current_part.buffer(event)
+            elif event is Events.FINISHED:
+                parts.append(current_part)
+
+    return parts
+
+
+def extract_multipart_form_file(part: Part) -> dict:
+    file_data = {
+        "name": part.name,
+        "filename": part.filename,
+        "content-type": part.content_type,
+        "charset": part.charset,
+        "content-length": part.size,
+        "file": part.value
+    }
+
+    return file_data
+
+
+def extract_multipart_form_data(part: Part) -> dict:
+    form_data = {
+        "name": part.name,
+        "content-type": part.content_type,
+        "charset": part.charset,
+        "content-length": part.size,
+        "form_data": part.value
+    }
+
+    return form_data
+
+
+def extract_multipart_json(part: Part) -> dict:
+    json = {
+        "name": part.name,
+        "content-type": part.content_type,
+        "charset": part.charset,
+        "content-length": part.size,
+        "json": loads(part.value)
+    }
+
+    return json
