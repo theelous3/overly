@@ -142,6 +142,7 @@ class SocketManager:
     """
     Handles getting new client sockets, and registered sockets making requests.
     """
+
     def __init__(self, server: Server):
         self.server = server
 

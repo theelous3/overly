@@ -9,7 +9,7 @@ __all__ = [
     "parse_multipart",
     "extract_multipart_form_file",
     "extract_multipart_form_data",
-    "extract_multipart_json"
+    "extract_multipart_json",
 ]
 
 from io import BytesIO
@@ -47,13 +47,10 @@ def extract_form_urlencoded(body: str) -> [(str, str)]:
 
 
 def extract_cookies(client_headers):
-    headers = [
-        [header.decode(), value.decode()]
-        for header, value in client_headers
-    ]
+    headers = [[header.decode(), value.decode()] for header, value in client_headers]
 
     try:
-        cookies = next(v for k, v in headers if k == 'cookie')
+        cookies = next(v for k, v in headers if k == "cookie")
     except StopIteration:
         return None
 
@@ -67,7 +64,9 @@ def extract_cookies(client_headers):
 
 
 def cookies_to_output(cookies: SimpleCookie) -> [[str, str]]:
-    return [f"{cookie_name}={cookies[cookie_name].coded_value}" for cookie_name in cookies]
+    return [
+        f"{cookie_name}={cookies[cookie_name].coded_value}" for cookie_name in cookies
+    ]
 
 
 def cookies_to_headers(cookies: SimpleCookie) -> [(str, str)]:
@@ -113,7 +112,7 @@ def extract_multipart_form_file(part: Part) -> dict:
         "content-type": part.content_type,
         "charset": part.charset,
         "content-length": part.size,
-        "file": part.value
+        "file": part.value,
     }
 
     return file_data
@@ -125,7 +124,7 @@ def extract_multipart_form_data(part: Part) -> dict:
         "content-type": part.content_type,
         "charset": part.charset,
         "content-length": part.size,
-        "form_data": part.value
+        "form_data": part.value,
     }
 
     return form_data
@@ -137,7 +136,7 @@ def extract_multipart_json(part: Part) -> dict:
         "content-type": part.content_type,
         "charset": part.charset,
         "content-length": part.size,
-        "json": loads(part.value)
+        "json": loads(part.value),
     }
 
     return json

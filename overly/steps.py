@@ -25,7 +25,7 @@ from .http_utils import (
     parse_multipart,
     extract_multipart_form_file,
     extract_multipart_form_data,
-    extract_multipart_json
+    extract_multipart_json,
 )
 from .errors import EndSteps
 
@@ -171,8 +171,8 @@ def accept_cookies_and_respond(client_handler, headers=None, data=None):
 
 
 def prepare_cookies_response(cookies: SimpleCookie) -> bytes:
-    cookies = {k: v for k, v in [cookie.split('=') for cookie in cookies]}
-    data = {'cookies': cookies}
+    cookies = {k: v for k, v in [cookie.split("=") for cookie in cookies]}
+    data = {"cookies": cookies}
     return json.dumps(data).encode()
 
 
@@ -222,13 +222,10 @@ def send_deflate(client_handler, headers=None, data=None):
     client_handler.http_send(h11.Data(data=response_data))
 
 
-def send_chunked(client_handler, headers=None, data:list=None):
+def send_chunked(client_handler, headers=None, data: list = None):
     response_data = data or [b"200"]
 
-    response_headers = [
-        ("connection", "close"),
-        ("transfer-encoding", "chunked"),
-    ]
+    response_headers = [("connection", "close"), ("transfer-encoding", "chunked")]
 
     if headers is not None:
         response_headers = _add_external_headers(response_headers, headers)
@@ -265,7 +262,6 @@ def send_200(client_handler, headers=None, data=None, delay_body=None):
         time.sleep(delay_body)
 
     client_handler.http_send(h11.Data(data=response_data))
-
 
 
 def send_200_blank_headers(client_handler, headers=None):
