@@ -15,10 +15,7 @@ from .socket_utils import default_socket_factory, default_socket_wrapper
 from .constants import HttpMethods, PollMaskGroups
 from .errors import EndSteps, MalformedStepError
 
-import logging
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from .errors import logger
 
 
 class Server(Thread):

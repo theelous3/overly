@@ -1,0 +1,3 @@
+include LICENCE
+include overly/default_server_cert.pem
+include overly/default_server_key.pem

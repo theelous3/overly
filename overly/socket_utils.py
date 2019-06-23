@@ -6,6 +6,9 @@ import ssl
 
 from contextlib import closing
 
+from .errors import logger
+
+
 _HERE = os.path.dirname(__file__)
 _DEFAULT_SERVER_CERT = os.path.join(_HERE, "default_server_cert.pem")
 _DEFAULT_SERVER_KEY = os.path.join(_HERE, "default_server_key.pem")
@@ -26,6 +29,7 @@ default_socket_wrapper = closing
 
 
 def ssl_socket_wrapper(sock):
+    logger.info(f"server cert path: {_DEFAULT_SERVER_CERT} | server key path: {_DEFAULT_SERVER_KEY}")
     return ssl.wrap_socket(
         sock,
         certfile=_DEFAULT_SERVER_CERT,
