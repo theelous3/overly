@@ -131,6 +131,7 @@ class Server(Thread):
             finally:
                 logger.info("Decorator exit signaling to kill client threads.")
                 self.kill_threads = True
+                self.join()
 
         return inner
 
