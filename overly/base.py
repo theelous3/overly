@@ -1,6 +1,6 @@
 from typing import Callable, Generator, Tuple
 
-from threading import Thread, BoundedSemaphore
+from threading import Thread, BoundedSemaphore, Event
 from queue import Queue
 
 from select import poll
@@ -68,6 +68,10 @@ class Server(Thread):
         # Thankfully all threads are using non-blocking ops, so this works :)
         self.kill_threads = False
 
+        # This event signals that the socket has been bound and the server
+        # is ready to roll.
+        self.ready_to_go = Event()
+
     def run(self):
         s = self.socket_factory()
         s.bind(self.location)
@@ -78,6 +82,8 @@ class Server(Thread):
 
             self.server_sock = s
             self.socket_manager = SocketManager(self)
+
+            self.ready_to_go.set()
 
             logger.info("Listening...")
 
@@ -100,6 +106,8 @@ class Server(Thread):
                         ).start()
 
                         self.requests_count += 1
+
+        self.ready_to_go.clear()
 
         self.queue.join()
         logger.info("Server signaling to kill client threads.")
@@ -125,6 +133,7 @@ class Server(Thread):
 
         def inner(*args, **kwargs):
             self.start()
+            self.ready_to_go.wait()
             try:
                 result = func(self, *args, **kwargs)
                 return result
