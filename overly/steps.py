@@ -38,19 +38,31 @@ from .errors import logger
 
 
 def finish(client_handler):
+    """
+    End the response gracefully.
+    """
     client_handler.http_send(h11.EndOfMessage())
     client_handler.http_send(h11.ConnectionClosed())
 
 
 def just_close(client_handler):
+    """
+    Just end the response without informing about conneciton close.
+    """
     client_handler.http_send(h11.ConnectionClosed())
 
 
 def just_end(client_handler):
+    """
+    Just end nicely but don't inform we're going to close.
+    """
     client_handler.http_send(h11.EndOfMessage())
 
 
 def just_kill():
+    """
+    Ungracefully kill the underlying connection as soon as possible.
+    """
     raise EndSteps
 
 
@@ -77,6 +89,10 @@ def send_request_as_json(client_handler, headers=None):
             status_code=200, http_version=b"1.1", reason=b"OK", headers=response_headers
         )
     )
+
+    import pprint
+
+    pprint.pprint(response_data)
 
     client_handler.http_send(h11.Data(data=response_data))
 

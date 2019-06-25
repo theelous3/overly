@@ -8,33 +8,38 @@ Let's start simple. Say we want to emulate the well known ``/get`` endpoint at h
 We use ``overly.Server`` as a decorator, passing it a series of steps to do when it gets a request. The decorator injects the server object in to the test, kinda like a fixture.
 
 ```python
+import requests
 from overly import Server, send_request_as_json, finish
 
-test_loc = ("localhost", 25001)
+@Server(("localhost", 25001), steps=[send_request_as_json, finish])
+def test_json_send(server):
+    r = requests.post(
+        server.http_test_url, json={"key_1": True, "key_2": "cheesestring"}
+    )
+    pprint(r.json())
 
-@Server(test_loc, steps=[send_request_as_json, finish])
-def test_request_get(server):
-    r = requests.get(server.http_test_url, data='wat')
-    assert r.status_code == 200
-    assert r.json()['body'] == 'wat'
-
-# The response looks like:
-# {
-#     'http_version': '1.1',
-#     'method': 'POST',
-#     'target': '/',
-#     'path': '/',
-#     'headers': [
-#         ['host', 'localhost:25001'],
-#         ['connection', 'keep-alive'],
-#         ['accept-encoding', 'gzip, deflate'],
-#         ['accept', '*/*'],
-#         ['content-length', '3'],
-#         ['user-agent', 'python-asks/2.2.0'],
-#         ['content-type', 'text/plain']
-#     ]
-#     'body': 'wat'
-# }
+# The response is:
+#
+# 'body': '{"key_1": true, "key_2": "cheesestring"}',
+# 'files': [],
+# 'forms': [],
+# 'headers': [
+#     ['host', 'localhost:25001'],
+#     ['user-agent', 'python-requests/2.19.1'],
+#     ['accept-encoding', 'gzip, deflate'],
+#     ['accept', '*/*'],
+#     ['connection', 'keep-alive'],
+#     ['content-length', '40'],
+#     ['content-type', 'application/json']],
+# 'http_version': '1.1',
+# 'json': [
+#     {
+#         'json': {'key_1': True, 'key_2': 'cheesestring'}
+#     }
+# ],
+# 'method': 'POST',
+# 'path': '/',
+# 'target': '/'}
 ```
 
 Simples! Now Let's Get Weird.
