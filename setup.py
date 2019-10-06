@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 from setuptools import setup
-from sys import version_info
 
 
 setup(
@@ -10,7 +9,7 @@ setup(
     long_description='overly is for testing your http client, from the balan to the bananas.',
     license='MIT',
     version='0.1.8',
-    python_requires=">=3.7",
+    python_requires=">=3.6",
     author='Mark Jameson - aka theelous3',
     url='https://github.com/theelous3/overly',
     packages=['overly'],
