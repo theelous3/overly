@@ -35,9 +35,6 @@ class PollMaskGroups:
     BADS = ERROR + HANGUPS + INVAL
 
 
-default_ssl_cert = root_cert
-
-
 ca_root_key = """-----BEGIN RSA PRIVATE KEY-----
 MIIEpAIBAAKCAQEAvkJHWFShZX2m3xEc/yjrs5l5vV+zhFAHVqAewHDBclpOYxCt
 Y1+q4sllI1wLmlA3egZM8+H7zEm82OCmWq9pYq173IYR5SYbABt7ctO3xouY02LJ
