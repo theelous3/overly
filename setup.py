@@ -8,7 +8,7 @@ setup(
     description='overly - http client testing for hoomans',
     long_description='overly is for testing your http client, from the balan to the bananas.',
     license='MIT',
-    version='0.1.81',
+    version='0.1.82',
     python_requires=">=3.6",
     author='Mark Jameson - aka theelous3',
     url='https://github.com/theelous3/overly',
